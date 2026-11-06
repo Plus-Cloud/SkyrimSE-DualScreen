@@ -15,4 +15,4 @@ In 1.0.0, launching with no internet got stuck restarting: Skyrim's copy protect
 **Updating:** open the app and tap the update banner on the bottom screen (or Launcher › Updates › Check now). Your saves, settings and mods stay.
 
 ---
-**SHA-256** (`SkyrimSE-DualScreen-1.0.1.apk`): `<filled in from the final build>`
+**SHA-256** (`SkyrimSE-DualScreen-1.0.1.apk`): `d75f5494462829916ce48a5cc7d37145075f03cf76b9f3923252fea7d93e0062`
