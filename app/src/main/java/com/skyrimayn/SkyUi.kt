@@ -164,3 +164,50 @@ internal fun SkyFitText(
         )
     }
 }
+
+/**
+ * FPS limit slider, [LauncherSettings.FPS_MIN]-[LauncherSettings.FPS_MAX]. Values that divide the screen's refresh
+ * rate evenly (at 120 Hz: 20, 24, 30, 40, 60; at 60 Hz: 20, 30, 60) are marked SMOOTH and offered as quick picks.
+ * [onPick] runs when the finger lifts (the game's limiter isn't changed on every step of a drag).
+ */
+@Composable
+internal fun FpsSlider(current: Int, onPick: (Int) -> Unit) {
+    val min = LauncherSettings.FPS_MIN
+    val max = LauncherSettings.FPS_MAX
+    var v by androidx.compose.runtime.remember(current) { androidx.compose.runtime.mutableIntStateOf(current.coerceIn(min, max)) }
+    // The Thor's top screen runs at 60 or 120 Hz (the player's Android display setting).
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val hz = androidx.compose.runtime.remember {
+        runCatching {
+            (context.getSystemService(android.content.Context.DISPLAY_SERVICE) as android.hardware.display.DisplayManager)
+                .getDisplay(android.view.Display.DEFAULT_DISPLAY).refreshRate.let { kotlin.math.round(it).toInt() }
+        }.getOrNull()?.takeIf { it >= 30 } ?: 120
+    }
+    val picks = listOf(20, 24, 30, 40, 60).filter { LauncherSettings.fpsIsSmooth(it, hz) }
+    androidx.compose.foundation.layout.Column(Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 4.dp)) {
+        androidx.compose.foundation.layout.Row(verticalAlignment = Alignment.CenterVertically) {
+            SkyText("FPS LIMIT", 15.sp, Sky.Text, 2.sp, modifier = Modifier.weight(1f))
+            SkyText("$v", 20.sp, Sky.Text, 1.sp)
+            val smooth = LauncherSettings.fpsIsSmooth(v, hz)
+            SkyText(if (smooth) "  SMOOTH AT $hz HZ" else "  UNEVEN AT $hz HZ", 10.sp, if (smooth) Sky.Dim else Sky.Faint, 1.5.sp)
+        }
+        androidx.compose.material3.Slider(
+            value = v.toFloat(),
+            onValueChange = { v = it.toInt() },
+            onValueChangeFinished = { onPick(v) },
+            valueRange = min.toFloat()..max.toFloat(),
+            steps = max - min - 1,
+            colors = androidx.compose.material3.SliderDefaults.colors(
+                thumbColor = Sky.Text, activeTrackColor = Sky.Body, inactiveTrackColor = Color(0xFF2A2A2A),
+                activeTickColor = Color.Transparent, inactiveTickColor = Color.Transparent,
+            ),
+        )
+        // Quick picks: the smooth values.
+        androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth(), horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween) {
+            picks.forEach { f ->
+                SkyText("$f", 13.sp, if (f == v) Sky.Text else Sky.Dim, 1.sp,
+                    modifier = Modifier.clickable { v = f; onPick(f) }.padding(horizontal = 10.dp, vertical = 4.dp))
+            }
+        }
+    }
+}

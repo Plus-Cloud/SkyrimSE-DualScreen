@@ -44,7 +44,7 @@ After you've signed in to Steam once, you can also play offline. The app checks 
 
 ## Tips
 
-- **Power** in the launcher: **Max** (60 FPS, the default), **Balanced** (45 FPS, noticeably cooler) or **Cool** (30 FPS, coolest and longest battery).
+- **Power** in the launcher: **Max** (60 FPS, the default), **Balanced** (40 FPS, smooth on the 120 Hz screen and noticeably cooler) or **Cool** (30 FPS, coolest and longest battery). Or set any FPS from 20 to 60 with the FPS slider.
 - **Graphics › Thor** (default) is Skyrim's Low preset tuned for the Thor:
   - **on:** blood and impact decals, no rain under roofs, snow sparkles, lens flare, and smoother fade-in of distant objects and people;
   - **off:** the effects that cost the most for the least, namely ambient occlusion, depth of field, god-rays, reflections, big shadow maps and TAA.

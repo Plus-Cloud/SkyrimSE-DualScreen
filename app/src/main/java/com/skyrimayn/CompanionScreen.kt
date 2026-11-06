@@ -1099,8 +1099,8 @@ private fun InGameSettings(onClose: () -> Unit, onNotice: (String) -> Unit) {
                     SelectorRow(c.label.uppercase(), c.options, values[c.key] ?: c.default, { it.uppercase() }) { pick(c, it); SkyrimEngine.applyHud() }
                 }
                 SectionHeader("PERFORMANCE")
-                SelectorRow("FPS LIMIT", LauncherSettings.fpsCap.options, values[LauncherSettings.fpsCap.key] ?: LauncherSettings.fpsCap.default, { it }) {
-                    pick(LauncherSettings.fpsCap, it); SkyrimEngine.applyFrameLimit()
+                FpsSlider((values[LauncherSettings.fpsCap.key] ?: LauncherSettings.fpsCap.default).toIntOrNull() ?: 60) {
+                    pick(LauncherSettings.fpsCap, it.toString()); SkyrimEngine.applyFrameLimit()
                 }
                 SelectorRow("PERFORMANCE STATS", LauncherSettings.perfHud.options, values[LauncherSettings.perfHud.key] ?: "Off", { it.uppercase() }) {
                     pick(LauncherSettings.perfHud, it); SkyrimEngine.applyPerfHud()

@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.2
+
+- **Balanced is now 40 FPS** (was 45). The Thor's screen runs at 60 or 120 Hz, so 45 FPS could never be shown evenly and juddered slightly; 40 divides 120 exactly. Players on Balanced move to 40 automatically.
+- **FPS slider** (20-60) in the launcher and in game (⚙), for any frame rate you like. Values that divide your screen's refresh rate evenly are marked SMOOTH, with one-tap picks.
+- **Updating from inside the app no longer crashes.** 1.0.0 and 1.0.1 were missing Android's install permission, so tapping Update closed the app. From 1.0.2 on, updates install from the banner.
+
 ## 1.0.1
 
 - **Offline play now works.** With no internet at Play, Skyrim starts through a DRM-free path (Steam's protection removed from a copy of `SkyrimSE.exe`, the original kept beside it) and needs no connection. Online launches switch back to real Steam by themselves. Saves made offline upload to Steam Cloud on the next online launch.

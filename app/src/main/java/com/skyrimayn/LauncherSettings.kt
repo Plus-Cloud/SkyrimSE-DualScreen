@@ -15,13 +15,18 @@ object LauncherSettings {
     val resolution = Choice("resolution", "Resolution", listOf("720p", "900p", "1080p"), "720p")
     /** Thor: Low plus the cheap things that look good, with the frame-eaters off (see SkyrimIni). */
     val quality = Choice("quality", "Graphics", listOf("Thor", "Low", "Medium", "High"), "Thor")
-    val fpsCap = Choice("fps", "FPS cap", listOf("30", "45", "60"), "60")
+    /** Any whole number from [FPS_MIN] to [FPS_MAX] (a slider); Power picks 30 / 40 / 60. */
+    val fpsCap = Choice("fps", "FPS cap", listOf("30", "40", "60"), "60")
+    const val FPS_MIN = 20
+    const val FPS_MAX = 60
+    /** True when [fps] divides the screen's refresh rate evenly, so every frame is shown for the same time. */
+    fun fpsIsSmooth(fps: Int, hz: Int) = fps > 0 && hz % fps == 0
     /**
      * How hard the Thor works. Cool: 30 FPS and the prime core left idle (the hottest core, mostly
-     * heat for little gain at 30 FPS). Balanced: 45 FPS. Max: 60 FPS. Sets the FPS limit too.
+     * heat for little gain at 30 FPS). Balanced: 40 FPS (even on the 120 Hz screen). Max: 60 FPS. Sets the FPS limit too.
      */
     val power = Choice("power", "Power", listOf("Cool", "Balanced", "Max"), "Max")
-    fun fpsFor(power: String) = when (power) { "Cool" -> "30"; "Max" -> "60"; else -> "45" }
+    fun fpsFor(power: String) = when (power) { "Cool" -> "30"; "Max" -> "60"; else -> "40" }
     /** Cores Wine may use: all eight, or all but the prime core (cpu 7 on the Snapdragon 8 Gen 2). */
     fun cpuListFor(power: String) = if (power == "Cool") "0,1,2,3,4,5,6" else "0,1,2,3,4,5,6,7"
     val translator = Choice("translator", "CPU translator", listOf("FEX", "Box64"), "FEX")
@@ -66,6 +71,8 @@ object LauncherSettings {
             listOfNotNull(prefs.getString(KEY_DRIVER, null)?.let { KEY_DRIVER to it })
         // Older builds saved the stats overlay as On/Off; On is now Full.
         if (_values.value[perfHud.key] == "On") set(perfHud, "Full")
+        // 1.0.2: Balanced is 40 FPS (45 judders on the 120 Hz screen); move Balanced players over.
+        if (get(power) == "Balanced" && get(fpsCap) == "45") set(fpsCap, "40")
         applyAchievementPrefs()
     }
 

@@ -94,7 +94,20 @@ object Updater {
     /** Back from Android's "install unknown apps" screen: carry on with the update if it's now allowed. */
     fun resumeIfPermitted(context: Context) {
         val s = _state.value as? State.NeedsPermission ?: return
-        if (context.packageManager.canRequestPackageInstalls()) install(context, s.release) else _state.value = State.Available(s.release)
+        if (canInstall(context) == true) install(context, s.release) else _state.value = State.Available(s.release)
+    }
+
+    /** May we hand an APK to Android's installer? null: Android refused to say (no install permission). */
+    private fun canInstall(context: Context): Boolean? =
+        runCatching { context.packageManager.canRequestPackageInstalls() }
+            .onFailure { Timber.w(it, "SkyrimAYN: can't check install permission") }.getOrNull()
+
+    /** Fallback: the release page in the browser, to download the APK by hand. */
+    private fun openReleasePage(context: Context, release: Release) {
+        runCatching {
+            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/$REPO/releases/tag/v${release.version}"))
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        }
     }
 
     /** Release notes as plain text (GitHub bodies are Markdown). */
@@ -117,7 +130,14 @@ object Updater {
     /** Downloads the release APK and opens Android's installer (asking for install permission first if needed). */
     fun install(context: Context, release: Release) {
         val app = context.applicationContext
-        if (!app.packageManager.canRequestPackageInstalls()) {
+        val allowed = canInstall(app)
+        if (allowed == null) {
+            // Never crash on Update: open the download page instead.
+            openReleasePage(app, release)
+            _state.value = State.Failed("Opened the download page: install the new APK from there.")
+            return
+        }
+        if (!allowed) {
             _state.value = State.NeedsPermission(release)
             app.startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:${app.packageName}"))
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))

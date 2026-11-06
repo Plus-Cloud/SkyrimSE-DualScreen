@@ -223,9 +223,13 @@ internal fun LauncherPage(gameRunning: Boolean, onBackToGame: () -> Unit, onMods
             when (values[LauncherSettings.power.key] ?: LauncherSettings.power.default) {
                 "Cool" -> "30 FPS, prime core idle. Coolest and longest battery: good for long sessions."
                 "Max" -> "60 FPS on every core: the full Skyrim experience. Runs warmest; best with the Thor's fan on."
-                else -> "45 FPS on every core. Noticeably cooler than Max, for long sessions."
-            } + "  FPS can still be changed in game from the bottom screen.",
+                else -> "40 FPS on every core: smooth on the Thor's 120 Hz screen. Noticeably cooler than Max, for long sessions."
+            },
             11.sp, Sky.Faint, 0.5.sp, light = true, maxLines = 2, modifier = Modifier.padding(start = 6.dp, bottom = 4.dp))
+        // Any FPS you like (Power sets it to 30 / 40 / 60); also in game from ⚙.
+        FpsSlider((values[LauncherSettings.fpsCap.key] ?: LauncherSettings.fpsCap.default).toIntOrNull() ?: 60) {
+            LauncherSettings.set(LauncherSettings.fpsCap, it.toString()); SkyrimEngine.applyFrameLimit()
+        }
 
         SectionHeader("PERFORMANCE")
         Selector(LauncherSettings.perfHud, values, label = "PERFORMANCE STATS") { SkyrimEngine.applyPerfHud() }
