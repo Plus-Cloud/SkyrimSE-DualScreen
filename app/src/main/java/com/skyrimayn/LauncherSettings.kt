@@ -18,7 +18,7 @@ object LauncherSettings {
     /** Any whole number from [FPS_MIN] to [FPS_MAX] (a slider); Power picks 30 / 40 / 60. */
     val fpsCap = Choice("fps", "FPS cap", listOf("30", "40", "60"), "60")
     const val FPS_MIN = 20
-    const val FPS_MAX = 60
+    const val FPS_MAX = 120   // plus Unlimited (stored as "0")
     /** True when [fps] divides the screen's refresh rate evenly, so every frame is shown for the same time. */
     fun fpsIsSmooth(fps: Int, hz: Int) = fps > 0 && hz % fps == 0
     /**

@@ -166,48 +166,57 @@ internal fun SkyFitText(
 }
 
 /**
- * FPS limit slider, [LauncherSettings.FPS_MIN]-[LauncherSettings.FPS_MAX]. Values that divide the screen's refresh
- * rate evenly (at 120 Hz: 20, 24, 30, 40, 60; at 60 Hz: 20, 30, 60) are marked SMOOTH and offered as quick picks.
- * [onPick] runs when the finger lifts (the game's limiter isn't changed on every step of a drag).
+ * FPS limit: ‹ › step through presets (20, 24, 30, 40, 60, 120, Unlimited), the slider picks anything between
+ * [LauncherSettings.FPS_MIN] and [LauncherSettings.FPS_MAX], and its far end is Unlimited (stored as 0).
+ * Values that divide the screen's top refresh rate evenly are marked SMOOTH. [onPick] runs when the finger lifts.
  */
 @Composable
 internal fun FpsSlider(current: Int, onPick: (Int) -> Unit) {
     val min = LauncherSettings.FPS_MIN
     val max = LauncherSettings.FPS_MAX
-    var v by androidx.compose.runtime.remember(current) { androidx.compose.runtime.mutableIntStateOf(current.coerceIn(min, max)) }
-    // The Thor's top screen runs at 60 or 120 Hz (the player's Android display setting).
+    val unlimitedPos = max + 1                       // the slider's last step
+    fun toPos(fps: Int) = if (fps <= 0) unlimitedPos else fps.coerceIn(min, max)
+    fun toFps(pos: Int) = if (pos >= unlimitedPos) 0 else pos
+    var v by androidx.compose.runtime.remember(current) { androidx.compose.runtime.mutableIntStateOf(toPos(current)) }
+    // The screen's top rate (the Thor: 120 Hz). The launcher itself may idle at 60, but the game gets the top rate.
     val context = androidx.compose.ui.platform.LocalContext.current
     val hz = androidx.compose.runtime.remember {
         runCatching {
             (context.getSystemService(android.content.Context.DISPLAY_SERVICE) as android.hardware.display.DisplayManager)
-                .getDisplay(android.view.Display.DEFAULT_DISPLAY).refreshRate.let { kotlin.math.round(it).toInt() }
+                .getDisplay(android.view.Display.DEFAULT_DISPLAY).supportedModes.maxOf { it.refreshRate }
+                .let { kotlin.math.round(it).toInt() }
         }.getOrNull()?.takeIf { it >= 30 } ?: 120
     }
-    val picks = listOf(20, 24, 30, 40, 60).filter { LauncherSettings.fpsIsSmooth(it, hz) }
+    val presets = (listOf(20, 24, 30, 40, 60, 90, 120).filter { it <= max && LauncherSettings.fpsIsSmooth(it, hz) } + unlimitedPos).distinct()
+    fun step(dir: Int) {
+        val next = if (dir > 0) presets.firstOrNull { it > v } else presets.lastOrNull { it < v }
+        if (next != null) { v = next; onPick(toFps(next)) }
+    }
+    val fps = toFps(v)
     androidx.compose.foundation.layout.Column(Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 4.dp)) {
         androidx.compose.foundation.layout.Row(verticalAlignment = Alignment.CenterVertically) {
             SkyText("FPS LIMIT", 15.sp, Sky.Text, 2.sp, modifier = Modifier.weight(1f))
-            SkyText("$v", 20.sp, Sky.Text, 1.sp)
-            val smooth = LauncherSettings.fpsIsSmooth(v, hz)
-            SkyText(if (smooth) "  SMOOTH AT $hz HZ" else "  UNEVEN AT $hz HZ", 10.sp, if (smooth) Sky.Dim else Sky.Faint, 1.5.sp)
+            SkyText("‹", 22.sp, if (presets.any { it < v }) Sky.Text else Sky.Faint, 0.sp,
+                modifier = Modifier.clickable { step(-1) }.padding(horizontal = 14.dp, vertical = 2.dp))
+            androidx.compose.foundation.layout.Column(Modifier.width(150.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                SkyText(if (fps == 0) "UNLIMITED" else "$fps", 20.sp, Sky.Text, 1.sp)
+                val smooth = fps > 0 && LauncherSettings.fpsIsSmooth(fps, hz)
+                SkyText(when { fps == 0 -> "NO LIMIT"; smooth -> "SMOOTH AT $hz HZ"; else -> "UNEVEN AT $hz HZ" }, 9.sp,
+                    if (fps == 0 || smooth) Sky.Dim else Sky.Faint, 1.5.sp)
+            }
+            SkyText("›", 22.sp, if (presets.any { it > v }) Sky.Text else Sky.Faint, 0.sp,
+                modifier = Modifier.clickable { step(1) }.padding(horizontal = 14.dp, vertical = 2.dp))
         }
         androidx.compose.material3.Slider(
             value = v.toFloat(),
-            onValueChange = { v = it.toInt() },
-            onValueChangeFinished = { onPick(v) },
-            valueRange = min.toFloat()..max.toFloat(),
-            steps = max - min - 1,
+            onValueChange = { v = kotlin.math.round(it).toInt() },
+            onValueChangeFinished = { onPick(toFps(v)) },
+            valueRange = min.toFloat()..unlimitedPos.toFloat(),
+            steps = unlimitedPos - min - 1,
             colors = androidx.compose.material3.SliderDefaults.colors(
                 thumbColor = Sky.Text, activeTrackColor = Sky.Body, inactiveTrackColor = Color(0xFF2A2A2A),
                 activeTickColor = Color.Transparent, inactiveTickColor = Color.Transparent,
             ),
         )
-        // Quick picks: the smooth values.
-        androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth(), horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween) {
-            picks.forEach { f ->
-                SkyText("$f", 13.sp, if (f == v) Sky.Text else Sky.Dim, 1.sp,
-                    modifier = Modifier.clickable { v = f; onPick(f) }.padding(horizontal = 10.dp, vertical = 4.dp))
-            }
-        }
     }
 }

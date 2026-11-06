@@ -509,8 +509,9 @@ object SkyrimEngine {
         c.setCPUList(LauncherSettings.cpuListFor(LauncherSettings.get(LauncherSettings.power)))
         val env = EnvVars(c.envVars)
         // The engine strips DXVK_FRAME_RATE and paces frames itself: give its limiter our cap from the start.
-        c.putExtra("fpsLimiterEnabled", "true")
-        c.putExtra("fpsLimiterTarget", LauncherSettings.get(LauncherSettings.fpsCap))
+        val cap = LauncherSettings.get(LauncherSettings.fpsCap).toIntOrNull() ?: 60
+        c.putExtra("fpsLimiterEnabled", (cap > 0).toString())     // 0 = Unlimited
+        c.putExtra("fpsLimiterTarget", (if (cap > 0) cap else 60).toString())
         // Compiled shaders are kept on disk and reused; 1 GB leaves room for a modded game (default 512 MB).
         env.put("MESA_SHADER_CACHE_MAX_SIZE", "1024MB")
         env.put("MESA_SHADER_CACHE_DISABLE", "false")
