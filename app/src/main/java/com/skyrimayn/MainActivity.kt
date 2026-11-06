@@ -226,7 +226,7 @@ class MainActivity : ComponentActivity() {
 // ---------------------------------------------------------------- shared look
 
 @Composable
-private fun Backdrop(content: @Composable () -> Unit) {
+internal fun Backdrop(content: @Composable () -> Unit) {
     // Slow drifting mist behind the title, like the game's main menu smoke.
     val drift = androidx.compose.animation.core.rememberInfiniteTransition(label = "mist")
     val t by drift.animateFloat(0f, 1f, androidx.compose.animation.core.infiniteRepeatable(
@@ -331,7 +331,7 @@ private fun StepLabel(n: Int, what: String) {
 }
 
 @Composable
-private fun FileAccessStep(onAllow: () -> Unit) = Backdrop {
+internal fun FileAccessStep(onAllow: () -> Unit) = Backdrop {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         SkyrimLogo(compact = true)
         Spacer(Modifier.height(40.dp))
@@ -347,7 +347,7 @@ private fun FileAccessStep(onAllow: () -> Unit) = Backdrop {
 }
 
 @Composable
-private fun FolderStep() = Backdrop {
+internal fun FolderStep() = Backdrop {
     val scope = rememberCoroutineScope()
     var checking by remember { mutableStateOf(false) }
     var problem by remember { mutableStateOf<String?>(null) }
