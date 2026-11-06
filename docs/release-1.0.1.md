@@ -6,6 +6,10 @@ In 1.0.0, launching with no internet got stuck restarting: Skyrim's copy protect
 - Online launches switch back to the original and real Steam by themselves, so cloud saves and Steam status work as before.
 - Saves you make offline upload to Steam Cloud the next time you play online. If the same save slot changed on another device meanwhile, the app asks which one to keep.
 
+**New: Steam achievements**
+- **Launcher › Steam Achievements** and **⚙ › Steam Achievements** in game: your unlocked achievements with dates, what's left, and hidden ones kept secret until you earn them. The list is kept on the Thor, so you can see it offline too.
+- **Unlock popup:** "Achievement unlocked" slides in on the game screen, with a matching notice on the bottom screen. Turn the popup or its sound off in either settings menu.
+
 **Also:** the app now checks for updates every hour instead of once a day.
 
 **Updating:** open the app and tap the update banner on the bottom screen (or Launcher › Updates › Check now). Your saves, settings and mods stay.

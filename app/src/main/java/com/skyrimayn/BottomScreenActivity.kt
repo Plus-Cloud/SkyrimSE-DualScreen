@@ -62,7 +62,7 @@ class BottomScreenActivity : ComponentActivity() {
     }
 }
 
-private enum class Page { LAUNCHER, MODS }
+private enum class Page { LAUNCHER, MODS, ACHIEVEMENTS }
 
 @Composable
 private fun BottomRoot() {
@@ -85,10 +85,12 @@ private fun BottomRoot() {
             gameRunning && companionOn && !forceLauncher -> CompanionScreen(onLauncher = { forceLauncher = true })
             fomod != null -> FomodWizard(fomod!!)
             page == Page.MODS -> ModManagerPage(gameDir!!, onBack = { page = Page.LAUNCHER })
+            page == Page.ACHIEVEMENTS -> AchievementsPage(onBack = { page = Page.LAUNCHER })
             else -> LauncherPage(
                 gameRunning = gameRunning && companionOn,
                 onBackToGame = { forceLauncher = false },
                 onMods = { page = Page.MODS },
+                onAchievements = { page = Page.ACHIEVEMENTS },
             )
         }
     }
@@ -149,7 +151,7 @@ private fun UpdateCard(update: Updater.State) {
 }
 
 @Composable
-internal fun LauncherPage(gameRunning: Boolean, onBackToGame: () -> Unit, onMods: () -> Unit) {
+internal fun LauncherPage(gameRunning: Boolean, onBackToGame: () -> Unit, onMods: () -> Unit, onAchievements: () -> Unit = {}) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val values by LauncherSettings.values.collectAsState()
@@ -240,6 +242,13 @@ internal fun LauncherPage(gameRunning: Boolean, onBackToGame: () -> Unit, onMods
 
         SectionHeader("DUAL SCREEN")
         Selector(LauncherSettings.companion, values, label = "IN-GAME COMPANION")
+
+        SectionHeader("ACHIEVEMENTS")
+        val achievements by Achievements.items.collectAsState()
+        LaunchedEffect(Unit) { Achievements.init(context); Achievements.refresh() }
+        EntryRow("STEAM ACHIEVEMENTS", Achievements.summary(achievements) ?: "VIEW", onAchievements)
+        Selector(LauncherSettings.achievementPopup, values, label = "UNLOCK POPUP")
+        Selector(LauncherSettings.achievementSound, values, label = "UNLOCK SOUND")
 
         SectionHeader("ADVANCED")
         Selector(LauncherSettings.heatGuard, values, label = "OVERHEAT PROTECTION")

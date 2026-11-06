@@ -30,6 +30,9 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.border
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
@@ -92,41 +95,26 @@ fun BoxScope.AchievementOverlay() {
 
 @Composable
 private fun AchievementNotificationContent(notification: AchievementNotification) {
-    Surface(
-        shape = RoundedCornerShape(12.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
-        shadowElevation = 6.dp,
-        tonalElevation = 2.dp,
+    // SkyrimSE-DualScreen's look: a dark panel with a thin silver frame, like the game's own notices.
+    Row(
+        modifier = Modifier
+            .background(androidx.compose.ui.graphics.Color(0xE6080808))
+            .border(1.dp, com.skyrimayn.Sky.Frame)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(
-            modifier = Modifier.padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            if (notification.iconUrl != null) {
-                CoilImage(
-                    modifier = Modifier
-                        .size(48.dp)
-                        .clip(RoundedCornerShape(8.dp)),
-                    imageModel = { notification.iconUrl },
-                    imageOptions = ImageOptions(
-                        contentScale = ContentScale.Crop,
-                    ),
-                    previewPlaceholder = painterResource(R.drawable.ic_logo_color),
-                )
-                Spacer(modifier = Modifier.width(12.dp))
-            }
-            Column {
-                Text(
-                    text = stringResource(R.string.achievement_unlocked),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-                Text(
-                    text = notification.name,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-            }
+        if (notification.iconUrl != null) {
+            CoilImage(
+                modifier = Modifier.size(48.dp).border(1.dp, com.skyrimayn.Sky.Frame),
+                imageModel = { notification.iconUrl },
+                imageOptions = ImageOptions(contentScale = ContentScale.Crop),
+                previewPlaceholder = painterResource(R.drawable.ic_logo_color),
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+        }
+        Column {
+            com.skyrimayn.SkyText("ACHIEVEMENT UNLOCKED", 11.sp, com.skyrimayn.Sky.Dim, 2.sp)
+            com.skyrimayn.SkyText(notification.name, 17.sp, com.skyrimayn.Sky.Text, 0.5.sp)
         }
     }
 }

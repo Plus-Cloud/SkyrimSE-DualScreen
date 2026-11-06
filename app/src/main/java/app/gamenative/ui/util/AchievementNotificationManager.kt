@@ -11,5 +11,6 @@ object AchievementNotificationManager {
 
     fun show(name: String, iconUrl: String?) {
         _notifications.trySend(AchievementNotification(name, iconUrl))
+        runCatching { com.skyrimayn.Achievements.onUnlocked(name) }   // bottom-screen notice + list refresh
     }
 }

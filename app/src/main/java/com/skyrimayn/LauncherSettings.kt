@@ -44,9 +44,12 @@ object LauncherSettings {
     val menuSounds = Choice("menu_sounds", "Menu sounds", listOf("On", "Off"), "On")
     /** Play with or without mods (also the escape hatch when a mod stops the game starting). */
     val mods = Choice("mods", "Mods", listOf("Enabled", "Disabled"), "Enabled")
+    /** Steam achievement unlocks: a popup on the game screen (and a notice on the bottom screen), and a sound. */
+    val achievementPopup = Choice("achievement_popup", "Unlock popup", listOf("On", "Off"), "On")
+    val achievementSound = Choice("achievement_sound", "Unlock sound", listOf("On", "Off"), "On")
 
     val all = listOf(resolution, quality, fpsCap, power, translator, companion, heatGuard, hudCompass, hudBars, hudEnemy, haptics, perfHud, frameGen,
-        pauseMenus, menuSounds, mods)
+        pauseMenus, menuSounds, mods, achievementPopup, achievementSound)
 
     /** Which parts of the game's HUD to hide, as the plugin's mask (1 compass, 2 bars, 4 enemy health). */
     fun hudMask(): Int = (if (get(hudCompass) == "Hidden") 1 else 0) or (if (get(hudBars) == "Hidden") 2 else 0)
@@ -63,6 +66,14 @@ object LauncherSettings {
             listOfNotNull(prefs.getString(KEY_DRIVER, null)?.let { KEY_DRIVER to it })
         // Older builds saved the stats overlay as On/Off; On is now Full.
         if (_values.value[perfHud.key] == "On") set(perfHud, "Full")
+        applyAchievementPrefs()
+    }
+
+    /** The engine shows the unlock popup and plays the sound; it reads these two from its own prefs. */
+    private fun applyAchievementPrefs() = runCatching {
+        app.gamenative.PrefManager.achievementShowNotification = get(achievementPopup) == "On"
+        app.gamenative.PrefManager.achievementPlaySound = get(achievementSound) == "On"
+        app.gamenative.PrefManager.achievementNotificationPosition = "bottom_right"
     }
 
     fun get(c: Choice): String = _values.value[c.key] ?: c.default
@@ -87,5 +98,6 @@ object LauncherSettings {
     fun set(c: Choice, v: String) {
         _values.value = _values.value + (c.key to v)
         ctx?.getSharedPreferences("launcher", 0)?.edit()?.putString(c.key, v)?.apply()
+        if (c === achievementPopup || c === achievementSound) applyAchievementPrefs()
     }
 }

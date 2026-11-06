@@ -73,7 +73,7 @@ fun CompanionScreen(onLauncher: () -> Unit, startTab: String? = null, startSetti
     LaunchedEffect(inGame) { while (inGame) { SkyrimEngine.applyHud(); delay(5000) } }
     LaunchedEffect(Unit) { SkyrimEngine.menuRequests.collect { showSettings = true } }
     val context = androidx.compose.ui.platform.LocalContext.current
-    LaunchedEffect(Unit) { GameSounds.init(context); NotificationFeed.start(context); GameIcons.load(context) }
+    LaunchedEffect(Unit) { GameSounds.init(context); NotificationFeed.start(context); GameIcons.load(context); Achievements.init(context) }
     val iconSheet by GameIcons.sheet.collectAsState()   // redraw once the game's icons are ready
     // Menus pause the game like the game's own (the Character page and quick bar don't, so they stay quick).
     val values by LauncherSettings.values.collectAsState()
@@ -1079,7 +1079,10 @@ private fun InGameSettings(onClose: () -> Unit, onNotice: (String) -> Unit) {
     val player by Link.player.collectAsState()
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     var confirmQuit by remember { mutableStateOf(false) }
+    var showAchievements by remember { mutableStateOf(false) }
     LaunchedEffect(confirmQuit) { if (confirmQuit) { delay(4000); confirmQuit = false } }
+    if (showAchievements) { AchievementsPage(onBack = { showAchievements = false }); return }
+    val achievements by Achievements.items.collectAsState()
     fun pick(c: Choice, v: String) { LauncherSettings.set(c, v) }
     val hud = listOf(LauncherSettings.hudCompass, LauncherSettings.hudBars)
     Box(Modifier.fillMaxSize().background(Color(0xFF070707)).clickable(enabled = false) {}) {
@@ -1106,6 +1109,10 @@ private fun InGameSettings(onClose: () -> Unit, onNotice: (String) -> Unit) {
                 SelectorRow("PAUSE IN MENUS", LauncherSettings.pauseMenus.options, values[LauncherSettings.pauseMenus.key] ?: LauncherSettings.pauseMenus.default, { it.uppercase() }) { pick(LauncherSettings.pauseMenus, it) }
                 SelectorRow("MENU SOUNDS", LauncherSettings.menuSounds.options, values[LauncherSettings.menuSounds.key] ?: "On", { it.uppercase() }) { pick(LauncherSettings.menuSounds, it) }
                 SelectorRow("HAPTICS", LauncherSettings.haptics.options, values[LauncherSettings.haptics.key] ?: "On", { it.uppercase() }) { pick(LauncherSettings.haptics, it) }
+                SectionHeader("ACHIEVEMENTS")
+                EntryRow("STEAM ACHIEVEMENTS", Achievements.summary(achievements) ?: "VIEW") { showAchievements = true }
+                SelectorRow("UNLOCK POPUP", LauncherSettings.achievementPopup.options, values[LauncherSettings.achievementPopup.key] ?: "On", { it.uppercase() }) { pick(LauncherSettings.achievementPopup, it) }
+                SelectorRow("UNLOCK SOUND", LauncherSettings.achievementSound.options, values[LauncherSettings.achievementSound.key] ?: "On", { it.uppercase() }) { pick(LauncherSettings.achievementSound, it) }
                 SectionHeader("GAME")
                 EntryRow("ON-SCREEN KEYBOARD", "for naming your character") { SkyrimEngine.showKeyboard(); onClose() }
                 EntryRow("QUICKSAVE", null) { SkyrimEngine.quickSave(); onClose(); onNotice("Quicksaving…") }

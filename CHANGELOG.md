@@ -4,6 +4,7 @@
 
 - **Offline play now works.** With no internet at Play, Skyrim starts through a DRM-free path (Steam's protection removed from a copy of `SkyrimSE.exe`, the original kept beside it) and needs no connection. Online launches switch back to real Steam by themselves. Saves made offline upload to Steam Cloud on the next online launch.
 - The app now checks for updates every hour instead of once a day.
+- **Steam achievements:** a list in the launcher and in the companion's ⚙ (unlocked first, with dates; hidden ones stay secret; cached so it shows offline), an "Achievement unlocked" popup on the game screen and a notice on the bottom screen, with settings for the popup and its sound.
 
 ## 1.0.0 — first public release
 

@@ -94,6 +94,9 @@ object NotificationFeed {
         bad.take(3).forEach { post("MOD DIDN'T LOAD", "$it isn't made for your game version (1.7.104) yet") }
     }
 
+    /** A Steam achievement unlocked in game (see [Achievements.onUnlocked]). */
+    fun achievement(name: String) = post("ACHIEVEMENT UNLOCKED", name)
+
     private fun post(title: String, text: String) {
         val n = Note(nextId++, title, text)
         _notes.value = (_notes.value + n).takeLast(3)
