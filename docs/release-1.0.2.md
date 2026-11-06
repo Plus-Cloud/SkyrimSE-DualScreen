@@ -7,4 +7,4 @@
 > **On 1.0.0 or 1.0.1?** Because of that bug, install this update by hand **once**: download `SkyrimSE-DualScreen-1.0.2.apk` below and open it on the Thor. It installs over your current version and keeps your saves, settings and mods. Updates after this one install from the banner in the launcher.
 
 ---
-**SHA-256** (`SkyrimSE-DualScreen-1.0.2.apk`): `<filled in from the final build>`
+**SHA-256** (`SkyrimSE-DualScreen-1.0.2.apk`): `98414ad61d5de48c010cfc7019bfd665748a554b50d9d3d39038a715d1746fa3`
