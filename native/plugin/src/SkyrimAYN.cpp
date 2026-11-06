@@ -51,7 +51,7 @@
 // ---------------------------------------------------------------- plugin info
 extern "C" __declspec(dllexport) SKSEPluginVersionData SKSEPlugin_Version = {
     SKSEPluginVersionData::kVersion,
-    19,                                 // plugin version 0.19
+    20,                                 // plugin version 0.20
     "SkyrimAYN",
     "Skyrim AYN",
     "",
@@ -983,9 +983,36 @@ static void QuestTargets(TESQuest* q, QuestCtx& c) {
     } __except (EXCEPTION_EXECUTE_HANDLER) {}
 }
 
+/**
+ * The top-level worldspace [ws] sits inside: Whiterun, Solitude, Windhelm, Riften and Markarth are their own
+ * worldspaces inside Tamriel and share its coordinates and map. Worlds with no parent (Blackreach, Sovngarde)
+ * are their own root.
+ */
+static TESWorldSpace* RootWorld(TESWorldSpace* ws) {
+    static std::unordered_map<TESWorldSpace*, TESWorldSpace*> roots;
+    if (!ws) return nullptr;
+    auto it = roots.find(ws);
+    if (it != roots.end()) return it->second;
+    TESWorldSpace* root = ws;
+    if (DataHandler* dh = *g_dataHandler) {
+        for (int depth = 0; depth < 4; ++depth) {
+            TESWorldSpace* parent = nullptr;
+            for (UInt32 i = 0; i < dh->arrWRLD.count && !parent; ++i) {
+                TESWorldSpace* w = static_cast<TESWorldSpace*>(dh->arrWRLD[i]);
+                if (w && w != root && FindParentPtr(root, w) == w) parent = w;
+            }
+            if (!parent) break;
+            root = parent;
+        }
+    }
+    roots.emplace(ws, root);
+    if (root != ws) Log("map: worldspace %08X shows the map of %08X", ws->formID, root->formID);
+    return root;
+}
+
 static void WriteMarkers(PlayerCharacter* pc, ULONGLONG now) {
     const bool interior = IsInterior(pc->parentCell);
-    if (pc->currentWorldSpace && !interior) g_mapWorld = pc->currentWorldSpace;
+    if (pc->currentWorldSpace && !interior) g_mapWorld = RootWorld(pc->currentWorldSpace);
     if (!g_mapWorld) g_mapWorld = DYNAMIC_CAST(LookupFormByID(0x3C), TESForm, TESWorldSpace);  // Tamriel
     TESWorldSpace* ws = g_mapWorld;
     if (!ws) return;
@@ -1503,7 +1530,7 @@ extern "C" __declspec(dllexport) void SkyrimAYN_Standalone() {
     g_skse = 0;
     g_start = GetTickCount64();
     OpenLog();
-    Log("SkyrimAYN 0.19 loading without SKSE");
+    Log("SkyrimAYN 0.20 loading without SKSE");
     // Every address here is for 1.7.104: on any other version, stay out of the game entirely.
     const uint32_t ver = ExeVersion();
     if (ver != RUNTIME_VERSION_1_7_104) { Log("game version %08X is not 1.7.104: companion idle", ver); return; }
@@ -1521,7 +1548,7 @@ extern "C" __declspec(dllexport) bool SKSEPlugin_Load(const SKSEInterface* skse)
     g_handle = skse->GetPluginHandle();
     g_start = GetTickCount64();
     OpenLog();
-    Log("SkyrimAYN 0.19 loading: runtime=%08X skse=%08X", g_runtime, g_skse);
+    Log("SkyrimAYN 0.20 loading: runtime=%08X skse=%08X", g_runtime, g_skse);
 
     g_task = static_cast<SKSETaskInterface*>(skse->QueryInterface(kInterface_Task));
     if (!g_task) { Log("no task interface, plugin idle"); return true; }

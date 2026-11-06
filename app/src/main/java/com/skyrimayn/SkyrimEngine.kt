@@ -46,7 +46,7 @@ object SkyrimEngine {
     const val CONTAINER_ID = "STEAM_489830"
     const val SYSTEM_DRIVER = "System"
     /** Version of the bundled SKSE plugin (SkyrimAYN.dll). */
-    const val PLUGIN_VERSION = "0.19"
+    const val PLUGIN_VERSION = "0.20"
     const val DEFAULT_DRIVER = "Turnip Adreno Driver T30 (@Mr_Purple_666)"
     /** Proton build Skyrim is tested with (arm64ec: the game's x86-64 code runs through FEX inside Wine). */
     const val WINE_VERSION = "proton-10.0-arm64ec-2"
