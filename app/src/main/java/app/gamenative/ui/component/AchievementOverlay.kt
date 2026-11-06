@@ -26,6 +26,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -94,27 +95,53 @@ fun BoxScope.AchievementOverlay() {
 }
 
 @Composable
-private fun AchievementNotificationContent(notification: AchievementNotification) {
-    // SkyrimSE-DualScreen's look: a dark panel with a thin silver frame, like the game's own notices.
+internal fun AchievementNotificationContent(notification: AchievementNotification) {
+    // Styled like Steam's own achievement toast: blue-grey gradient, soft corners, icon on the left.
+    val shape = RoundedCornerShape(4.dp)
     Row(
         modifier = Modifier
-            .background(androidx.compose.ui.graphics.Color(0xE6080808))
-            .border(1.dp, com.skyrimayn.Sky.Frame)
-            .padding(horizontal = 14.dp, vertical = 10.dp),
+            .width(300.dp)
+            .shadow(10.dp, shape)
+            .background(
+                androidx.compose.ui.graphics.Brush.verticalGradient(
+                    listOf(androidx.compose.ui.graphics.Color(0xFF2E3D50), androidx.compose.ui.graphics.Color(0xFF1B2533)),
+                ),
+                shape,
+            )
+            .border(1.dp, androidx.compose.ui.graphics.Color(0xFF3E5068), shape)
+            .padding(10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (notification.iconUrl != null) {
-            CoilImage(
-                modifier = Modifier.size(48.dp).border(1.dp, com.skyrimayn.Sky.Frame),
-                imageModel = { notification.iconUrl },
-                imageOptions = ImageOptions(contentScale = ContentScale.Crop),
-                previewPlaceholder = painterResource(R.drawable.ic_logo_color),
-            )
-            Spacer(modifier = Modifier.width(12.dp))
+        Box(
+            Modifier.size(56.dp).clip(RoundedCornerShape(2.dp)).background(androidx.compose.ui.graphics.Color(0xFF101822)),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (notification.iconUrl != null) {
+                CoilImage(
+                    modifier = Modifier.size(56.dp),
+                    imageModel = { notification.iconUrl },
+                    imageOptions = ImageOptions(contentScale = ContentScale.Crop),
+                    previewPlaceholder = painterResource(R.drawable.ic_logo_color),
+                )
+            }
         }
-        Column {
-            com.skyrimayn.SkyText("ACHIEVEMENT UNLOCKED", 11.sp, com.skyrimayn.Sky.Dim, 2.sp)
-            com.skyrimayn.SkyText(notification.name, 17.sp, com.skyrimayn.Sky.Text, 0.5.sp)
+        Spacer(modifier = Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = "Achievement Unlocked",
+                color = androidx.compose.ui.graphics.Color(0xFFFFFFFF),
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+            )
+            Spacer(Modifier.size(2.dp))
+            Text(
+                text = notification.name,
+                color = androidx.compose.ui.graphics.Color(0xFFB5C2CE),
+                fontSize = 13.sp,
+                maxLines = 2,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            )
         }
     }
 }
