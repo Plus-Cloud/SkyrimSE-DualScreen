@@ -1,0 +1,14 @@
+**Offline play now works.**
+
+In 1.0.0, launching with no internet got stuck restarting: Skyrim's copy protection needs Steam, and Steam can't sign in offline. Now, if there's no internet when you press Play, Skyrim starts through a DRM-free path and needs no connection at all:
+
+- The first offline launch makes a copy of `SkyrimSE.exe` with Steam's protection removed (about a minute, once). Your original is kept right beside it, and your PC's copy is never touched.
+- Online launches switch back to the original and real Steam by themselves, so cloud saves and Steam status work as before.
+- Saves you make offline upload to Steam Cloud the next time you play online. If the same save slot changed on another device meanwhile, the app asks which one to keep.
+
+**Also:** the app now checks for updates every hour instead of once a day.
+
+**Updating:** open the app and tap the update banner on the bottom screen (or Launcher › Updates › Check now). Your saves, settings and mods stay.
+
+---
+**SHA-256** (`SkyrimSE-DualScreen-1.0.1.apk`): `<filled in from the final build>`

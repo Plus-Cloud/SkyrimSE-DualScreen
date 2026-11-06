@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.1
+
+- **Offline play now works.** With no internet at Play, Skyrim starts through a DRM-free path (Steam's protection removed from a copy of `SkyrimSE.exe`, the original kept beside it) and needs no connection. Online launches switch back to real Steam by themselves. Saves made offline upload to Steam Cloud on the next online launch.
+- The app now checks for updates every hour instead of once a day.
+
 ## 1.0.0 — first public release
 
 **The app**

@@ -65,8 +65,8 @@ android {
         buildConfigField("boolean", "MODERN_XR", "false")
 
         // Skyrim AYN release numbering (GitHub tags vX.Y.Z); the code only ever goes up.
-        versionCode = 110
-        versionName = "1.0.0"
+        versionCode = 111
+        versionName = "1.0.1"
 
         buildConfigField("boolean", "GOLD", "false")
         fun secret(name: String) =

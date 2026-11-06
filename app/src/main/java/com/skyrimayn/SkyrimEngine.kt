@@ -195,6 +195,11 @@ object SkyrimEngine {
 
     /** Set when the player chooses to play without waiting for Steam (only possible after a first sign-in). */
     @Volatile var playOffline = false
+
+    /** This launch can't reach Steam: no internet, or the player chose to play offline. */
+    fun offlineLaunch(): Boolean = playOffline || !NetworkMonitor.hasInternet.value ||
+        // Test builds: a ".force_offline" file in the game folder simulates no internet (adb needs Wi-Fi).
+        (app.gamenative.BuildConfig.DEBUG && GameFolder.dir.value?.let { File(it, ".force_offline").isFile } == true)
     fun canPlayOffline() = PrefManager.refreshToken.isNotEmpty()
 
     /** Try to reach Steam right now. */
@@ -472,8 +477,26 @@ object SkyrimEngine {
         c.setLaunchRealSteam(false)
         c.setLaunchBionicSteam(true)
         c.setSteamType(Container.STEAM_TYPE_HEADLESS)
+        c.setUseLegacyDRM(false)
+        c.setUnpackFiles(false)
         // Through SKSE when the player installed it (mods need it); otherwise straight to the game.
-        c.setExecutablePath(if (GameFolder.dir.value?.let(::skseInstalled) == true) "skse64_loader.exe" else "SkyrimSE.exe")
+        val skse = GameFolder.dir.value?.let(::skseInstalled) == true
+        c.setExecutablePath(if (skse) "skse64_loader.exe" else "SkyrimSE.exe")
+        if (offlineLaunch()) {
+            // No internet: Steam can't sign in, and Skyrim's copy protection won't start without it. Use the
+            // engine's DRM-free path instead: SkyrimSE.exe with Steam's protection removed (Steamless, once;
+            // the original is kept as SkyrimSE.exe.original.exe) and the engine's stand-in steam_api64.dll.
+            // Online launches switch back to the originals by themselves (restoreSteamApi).
+            c.setLaunchBionicSteam(false)
+            c.setUseLegacyDRM(true)
+            val unpacked = GameFolder.dir.value?.let { File(it, "SkyrimSE.exe.unpacked.exe").isFile } == true
+            if (!unpacked) {
+                c.setNeedsUnpacking(true)
+                // Steamless processes the launch exe; with SKSE that's the loader, so scan for SkyrimSE.exe too.
+                c.setUnpackFiles(skse)
+            }
+            Timber.i("SkyrimAYN: offline launch (DRM-free path, unpacked copy ${if (unpacked) "ready" else "to be made"})")
+        }
         c.setExternalDisplayMode(Container.EXTERNAL_DISPLAY_MODE_OFF) // the bottom screen is ours
         // Sleep / home: the game freezes (no CPU, no heat) and carries on by itself when you come back.
         c.setSuspendPolicy(Container.SUSPEND_POLICY_AUTO)

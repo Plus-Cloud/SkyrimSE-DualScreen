@@ -47,11 +47,11 @@ object Updater {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val http by lazy { OkHttpClient.Builder().connectTimeout(15, TimeUnit.SECONDS).readTimeout(60, TimeUnit.SECONDS).build() }
 
-    /** Checks GitHub (at most once a day unless [force]). */
+    /** Checks GitHub (at most once an hour unless [force]; GitHub allows 60 unauthenticated checks an hour). */
     fun check(context: Context, force: Boolean = false) {
         val prefs = context.getSharedPreferences("updater", 0)
         val now = System.currentTimeMillis()
-        if (!force && now - prefs.getLong("last_check", 0) < 24 * 3600_000L) {
+        if (!force && now - prefs.getLong("last_check", 0) < 3600_000L) {
             prefs.getString("cached", null)?.let { cached -> parse(JSONObject(cached))?.let { if (newer(it.version, currentVersion)) _state.value = State.Available(it) } }
             return
         }
