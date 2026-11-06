@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SkyrimSE-DualScreen mark: "SE" in off-white over a thin gold rule (the title screen's colours). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+    <!-- S -->
+    <path android:fillColor="#00000000" android:strokeColor="#ECEAE4" android:strokeWidth="4.6"
+        android:strokeLineCap="butt" android:strokeLineJoin="round"
+        android:pathData="M50.5,43.2 C47.4,39.6 41.8,38.6 37.6,40.4 C33.2,42.3 32.4,47.4 35.6,50.2 C38.2,52.4 43.6,53.2 47.2,55.4 C51.6,58.1 51.4,64.4 47.2,67 C42.8,69.7 35.6,68.9 31.6,64.6" />
+    <!-- E -->
+    <path android:fillColor="#00000000" android:strokeColor="#ECEAE4" android:strokeWidth="4.6"
+        android:strokeLineCap="butt" android:strokeLineJoin="miter"
+        android:pathData="M76.5,40.3 L59.3,40.3 L59.3,67.7 L76.5,67.7 M59.3,54 L72.5,54" />
+    <!-- rule -->
+    <path android:fillColor="#00000000" android:strokeColor="#C9A964" android:strokeWidth="1.4"
+        android:pathData="M31,76.5 L77,76.5" />
+</vector>

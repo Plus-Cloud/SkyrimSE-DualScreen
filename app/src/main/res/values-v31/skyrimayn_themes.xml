@@ -1,0 +1,11 @@
+<resources>
+    <!-- Android 12+ launch splash: the SkyrimSE-DualScreen mark on black instead of a generic icon. -->
+    <style name="Theme.SkyrimAYN" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">#FF101012</item>
+        <item name="android:statusBarColor">#FF101012</item>
+        <item name="android:navigationBarColor">#FF101012</item>
+        <item name="android:windowSplashScreenBackground">#FF0B0B0D</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/ic_skyrimayn_fg</item>
+        <item name="android:windowSplashScreenIconBackgroundColor">#FF0B0B0D</item>
+    </style>
+</resources>
