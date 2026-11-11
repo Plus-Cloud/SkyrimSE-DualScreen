@@ -2,20 +2,26 @@
 
 ## 1.0.3
 
-- **Languages:** the app and companion now come in English, Chinese (Simplified and Traditional), Japanese, Korean, Spanish, Portuguese (Brazil), French, German, Italian, Russian and Polish. Pick yours on the first setup screen or in the companion's settings.
+- **Both screens are now one app.** The companion is part of the game's own window instead of a second app, so Back, Home and launchers treat Skyrim as a single game: **Cocoon now pauses and resumes it properly** on dual screen, and nothing on the bottom screen ever takes the controller from the game.
 - **Much faster modded boots:** mods now live inside the app's own storage instead of your Skyrim folder, because Android's shared storage is slow for the thousands of small files mods add. A 28-mod setup boots in about 45 s instead of over 3 minutes.
   - **Your existing mods are moved over automatically** the first time you open 1.0.3, before you can press Play (a "Moving your mods into the app…" progress line shows; it takes seconds). Nothing to do, nothing re-downloaded.
   - Your Skyrim folder goes back to the plain game files. Mod downloads stay in `SkyrimAYN/downloads`, so if the app is ever uninstalled, reinstalling it rebuilds your mods from them.
+- **Keyboard on the bottom screen:** naming your character and Nexus search type on the bottom screen, so the keyboard doesn't cover the game or the mod browser.
 - **Quicksave and autosave fixed** (from the game menu and the companion).
+- **Inventory:** drop items (DROP, or DROP ALL for a stack) and sort by name, weight or value from the bottom screen. Worn and quest items can't be dropped, as in the game.
+- **Languages:** the app and companion now come in English, Chinese (Simplified and Traditional), Japanese, Korean, Spanish, Portuguese (Brazil), French, German, Italian, Russian and Polish. Pick yours on the first setup screen or in the companion's settings.
 - **Depth-of-field blur removed:** no more blurry background.
 - **FPS limit:** quick picks that run smoothly on your screen (on the Thor: 20, 24, 30, 40, 60, 120 or Unlimited), plus a Custom option with a slider.
 - **Save and Quit** goes straight back to the launcher (no more 10-20 s black screen).
-- **Keyboard on the bottom screen:** naming your character and Nexus search type on the bottom screen, so the keyboard doesn't cover the game or the mod browser.
-- **Both screens are now one app.** The companion is part of the game's own window instead of a second app, so Back, Home and launchers treat Skyrim as a single game: **Cocoon now pauses and resumes it properly** on dual screen, and nothing on the bottom screen ever takes the controller from the game.
+- **Dim with game light** (⚙, on by default): the bottom screen darkens in dark places so it doesn't glare in dungeons or at night.
 - **Back:** Back on the launcher, or a quick double Back in game, sends both screens to the background together. A single Back in game opens the companion's settings.
+- **Report a Problem** (launcher and companion ⚙) saves a log bundle to Download and opens a pre-filled GitHub issue to attach it to. A crash notice appears if Skyrim closes unexpectedly.
+- Quitting from Skyrim's own menu now closes the game cleanly instead of freezing.
+- Hidden compass and health bars no longer flash back on screen when you crouch or stand.
+- The top screen no longer flips upside-down after closing the Thor's lid.
+- The map works inside walled cities (Whiterun, Solitude, Windhelm, Riften, Markarth).
 - File pickers in the companion (mod files, mod lists, drivers) open on the bottom screen, where you tapped.
 - Fixed a rare crash when quitting a game while Steam was reconnecting (the app closed instead of returning to the launcher).
-- **Report a Problem** (launcher and companion ⚙) saves a log bundle to Download and opens a pre-filled GitHub issue to attach it to. A crash notice appears if Skyrim closes unexpectedly.
 - Read-only saves are fixed automatically at launch.
 - Recommended mod list is now 30 mods: Immersive Citizens - AI Overhaul and Enhanced Blood Textures were added.
 - Gyro aim removed.
