@@ -830,12 +830,12 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun setOrientationTo(orientation: Int, conformTo: EnumSet<Orientation>) {
-        if (isHeadset(this)) {
-            if (requestedOrientation != ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE) {
-                requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
-            }
-            return
+        // SkyrimSE-DualScreen runs on the Thor, which has one right way up: the tilt of closing the
+        // lid must never choose upside-down landscape.
+        if (requestedOrientation != ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE) {
+            requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
         }
+        return
         // Log.d("MainActivity$index", "Setting orientation to conform")
 
         // The launcher owns the screen only while the last orientation request was its own

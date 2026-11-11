@@ -47,12 +47,14 @@ object SkyrimIni {
             "iLocation X" to "0",
             "iLocation Y" to "0",
         ))
-        // Handheld tuning. Ambient occlusion and depth of field cost ~3 FPS and ~1.5 W on the Thor's GPU
-        // (measured at 720p) for little visible difference on a 6" screen.
-        if (preset == "Low" || preset == "Thor") {
-            set(prefs, "Display", mapOf("bSAOEnable" to "0"))
-            set(prefs, "ImageSpace", mapOf("bDoDepthOfField" to "0"))
-        }
+        // Handheld tuning. Ambient occlusion costs a few FPS on the Thor's GPU (measured at 720p) for little
+        // visible difference on a 6" screen.
+        if (preset == "Low" || preset == "Thor") set(prefs, "Display", mapOf("bSAOEnable" to "0"))
+        // Depth of field stays on in every preset: with it off and TAA off, Skyrim's quicksave and autosave
+        // quietly do nothing (manual saves still work). Earlier versions turned it off, so set it back.
+        set(prefs, "ImageSpace", mapOf("bDoDepthOfField" to "1"))
+        // Gyro aim moves the camera as a mouse: without this the game's acceleration warps it.
+        set(prefs, "Controls", mapOf("bMouseAcceleration" to "0"))
         if (preset == "Thor") applyThorPreset(prefs)
         // Faster boot: skip the Bethesda logo video before the main menu (a standard Skyrim.ini tweak).
         val ini = File(dir, "Skyrim.ini")

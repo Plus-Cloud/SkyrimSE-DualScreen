@@ -64,7 +64,15 @@ object ModArchiveExtractor {
             val startedAt = System.nanoTime()
             val entries = try {
                 when (archiveExtension) {
-                    "zip" -> extractZip(archiveFile, destination, onProgress)
+                    "zip" -> try {
+                        extractZip(archiveFile, destination, onProgress)
+                    } catch (e: java.util.zip.ZipException) {
+                        // Some mod zips use Deflate64, which Android's zip reader doesn't handle.
+                        Timber.i("Zip reader refused %s (%s); using Commons Compress", archiveFile.name, e.message)
+                        destination.deleteRecursively()
+                        destination.mkdirs()
+                        extractZipCommons(archiveFile, destination, onProgress)
+                    }
                     "7z" -> extractSevenZip(archiveFile, destination, onProgress)
                     "rar" -> extractRar(archiveFile, destination, onProgress)
                     "exe" -> preserveExecutableFile(archiveFile, destination, preservedSingleFileName, onProgress)
@@ -139,6 +147,45 @@ object ModArchiveExtractor {
             }
             .toList()
             .sortedBy { it.path.lowercase() }
+    }
+
+    private fun extractZipCommons(
+        archiveFile: File,
+        destination: File,
+        onProgress: (ModArchiveExtractionProgress) -> Unit,
+    ): List<ModArchiveEntry> {
+        val entries = mutableListOf<ModArchiveEntry>()
+        var expandedBytes = 0L
+        org.apache.commons.compress.archivers.zip.ZipFile.builder().setFile(archiveFile).get().use { zip ->
+            val all = zip.entries.toList()
+            if (all.size > MAX_ENTRIES) throw IOException("Archive has too many entries")
+            val totalBytes = all.filter { !it.isDirectory && it.size > 0L }.sumOf { it.size }
+            if (totalBytes > MAX_EXPANDED_BYTES) throw IOException("Archive expands beyond the safety limit")
+            for (entry in all) {
+                val outFile = safeDestination(destination, entry.name)
+                if (entry.isDirectory) {
+                    outFile.mkdirs()
+                    entries += ModArchiveEntry(normalizeArchivePath(entry.name), true, 0L)
+                    continue
+                }
+                outFile.parentFile?.mkdirs()
+                zip.getInputStream(entry).use { input ->
+                    FileOutputStream(outFile).buffered(ARCHIVE_READ_BLOCK_SIZE).use { output ->
+                        val buffer = ByteArray(ARCHIVE_READ_BLOCK_SIZE)
+                        while (true) {
+                            val read = input.read(buffer)
+                            if (read <= 0) break
+                            expandedBytes += read
+                            if (expandedBytes > MAX_EXPANDED_BYTES) throw IOException("Archive expands beyond the safety limit")
+                            output.write(buffer, 0, read)
+                            emitProgress(onProgress, "zip", entries.size, all.size, expandedBytes, totalBytes, entry.name)
+                        }
+                    }
+                }
+                entries += ModArchiveEntry(normalizeArchivePath(entry.name), false, outFile.length())
+            }
+        }
+        return entries
     }
 
     private fun extractZip(

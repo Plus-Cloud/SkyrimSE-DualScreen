@@ -49,7 +49,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.io.File
 
-private enum class ModTab(val label: String) { MODS("MODS"), LOAD_ORDER("LOAD ORDER"), DOWNLOADS("DOWNLOADS") }
+private enum class ModTab(val label: String) { MODS("MODS"), LISTS("MOD LISTS"), LOAD_ORDER("LOAD ORDER"), DOWNLOADS("DOWNLOADS"), OPTIONS("OPTIONS") }
 
 /** The Mod Manager hub on the bottom screen. */
 @Composable
@@ -69,6 +69,9 @@ internal fun ModManagerPage(gameDir: String, onBack: () -> Unit) {
     LaunchedEffect(tab) { if (tab == ModTab.DOWNLOADS) ModManager.load() }
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let(ModManager::importArchive) }
+    val folderPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+        uri?.let(GameFolder::pathFromTreeUri)?.let(ModManager::importFolder)
+    }
 
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 12.dp)) {
@@ -88,37 +91,163 @@ internal fun ModManagerPage(gameDir: String, onBack: () -> Unit) {
                 ModTab.entries.forEach { t ->
                     val sel = t == tab
                     val badge = if (t == ModTab.DOWNLOADS && downloads.any { it.state == ModManager.DlState.DOWNLOADING }) " ●" else ""
-                    Box(Modifier.weight(1f).clickable { tab = t }.padding(vertical = 8.dp), contentAlignment = Alignment.Center) {
-                        SkyText(t.label + badge, if (sel) 16.sp else 14.sp, if (sel) Sky.Text else Sky.Dim, 2.sp)
+                    Box(Modifier.weight(if (t == ModTab.MODS || t == ModTab.OPTIONS) 0.8f else 1.1f).clickable { tab = t }.padding(vertical = 8.dp), contentAlignment = Alignment.Center) {
+                        SkyText(t.label + badge, if (sel) 14.sp else 13.sp, if (sel) Sky.Text else Sky.Dim, 1.5.sp)
                     }
                 }
             }
             Rule()
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 when (tab) {
-                    ModTab.MODS -> InstalledList(mods, onImport = { picker.launch(arrayOf("*/*")) }, onGetMods = { NexusActivity.open(context) })
+                    ModTab.MODS -> InstalledList(mods, onGetMods = { NexusActivity.open(context) })
+                    ModTab.LISTS -> ModListsTab()
                     ModTab.LOAD_ORDER -> LoadOrderList(context, gameDir)
                     ModTab.DOWNLOADS -> DownloadsList(downloads, mods.map { it.archive }.toSet(), onKey = { NexusActivity.open(context) })
+                    ModTab.OPTIONS -> ModOptions(
+                        onInstallFile = { picker.launch(arrayOf("*/*")) },
+                        onImportFolder = { folderPicker.launch(null) },
+                    )
                 }
             }
-            SkyText(
-                notice ?: when (tab) {
-                    ModTab.MODS -> "Tap a mod to select it. GET MODS opens Nexus Mods on the top screen; downloads install themselves."
-                    ModTab.LOAD_ORDER -> "Sorted automatically: masters first, each plugin after what it needs."
-                    ModTab.DOWNLOADS -> "Archives are kept here so you can reinstall without downloading again."
-                },
-                13.sp, if (notice != null) Sky.Text else Sky.Faint, 0.5.sp, light = notice == null, maxLines = 2,
-                modifier = Modifier.fillMaxWidth().padding(top = 8.dp), align = TextAlign.Center,
-            )
+            DownloadStrip(everything = false)
+            val hint = when (tab) {
+                ModTab.LOAD_ORDER -> "Sorted automatically: masters first, each plugin after what it needs."
+                ModTab.DOWNLOADS -> "Archives are kept here so you can reinstall without downloading again."
+                else -> null
+            }
+            (notice ?: hint)?.let {
+                SkyText(it, 13.sp, if (notice != null) Sky.Text else Sky.Faint, 0.5.sp, light = notice == null, maxLines = 2,
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp), align = TextAlign.Center)
+            }
         }
         busy?.let { BusyPanel(it) }
+    }
+}
+
+// ---------------------------------------------------------------- mod lists
+
+@Composable
+private fun ModListsTab() {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val lists by ModLists.lists.collectAsState()
+    val mods by ModManager.mods.collectAsState()
+    var openName by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(Unit) { ModLists.load(context) }
+    val importer = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) scope.launch { ModManager.postNotice(ModLists.import(context, uri)) }
+    }
+    val open = lists.firstOrNull { it.name == openName }
+    if (open != null) { ModListDetail(open, onBack = { openName = null }); return }
+    val installed = mods.map { it.nexusId }.toSet()
+    Column(Modifier.fillMaxSize()) {
+        LazyColumn(Modifier.weight(1f).fillMaxWidth()) {
+            items(lists, key = { (it.file?.name ?: "builtin") + it.name }) { list ->
+                Row(Modifier.fillMaxWidth().clickable { openName = list.name }.padding(vertical = 11.dp, horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        SkyText(list.name, 18.sp, Sky.Text, 0.3.sp)
+                        val have = list.entries.count { it.nexusId in installed }
+                        SkyText((if (list.builtIn) "RECOMMENDED  ·  " else "") + "$have of ${list.entries.size} installed", 12.sp, Sky.Dim, 0.5.sp, light = true)
+                    }
+                    SkyText("›", 24.sp, Sky.Dim, 0.sp)
+                }
+            }
+        }
+        Rule()
+        Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
+            ModAction("IMPORT A LIST", true) { importer.launch(arrayOf("application/json", "text/plain", "application/octet-stream")) }
+            ModAction("SAVE MY MODS AS A LIST", mods.isNotEmpty()) { scope.launch { ModManager.postNotice(ModLists.createFromInstalled(context)) } }
+        }
+    }
+}
+
+/** A list's mods, A to Z in fixed positions: each row goes Download, progress bar, tick. */
+@Composable
+private fun ModListDetail(list: ModLists.ModList, onBack: () -> Unit) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val mods by ModManager.mods.collectAsState()
+    val downloads by ModManager.downloads.collectAsState()
+    val queued by ModManager.queued.collectAsState()
+    val confirm by ModManager.freeConfirm.collectAsState()
+    val fomod by ModManager.fomod.collectAsState()
+    var confirmDelete by remember { mutableStateOf(false) }
+    LaunchedEffect(confirmDelete) { if (confirmDelete) { delay(3000); confirmDelete = false } }
+    val installed = mods.map { it.nexusId }.toSet()
+    val waiting = remember(queued, confirm) { ModManager.queuedMods() }
+    fun request(entries: List<ModLists.Entry>) = ModManager.requestFromList(entries, list.plugins) { NexusActivity.open(context) }
+    val missing = list.entries.count { it.nexusId !in installed }
+    Column(Modifier.fillMaxSize()) {
+        Row(Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+            SkyText("‹", 26.sp, Sky.Text, 0.sp, modifier = Modifier.clickable(onClick = onBack).padding(end = 12.dp))
+            Column(Modifier.weight(1f)) {
+                SkyText(list.name, 18.sp, Sky.Text, 0.3.sp)
+                SkyText("${list.entries.size - missing} of ${list.entries.size} installed", 12.sp, Sky.Dim, 0.5.sp, light = true)
+            }
+        }
+        Rule(color = Sky.Faint)
+        LazyColumn(Modifier.weight(1f).fillMaxWidth()) {
+            items(list.entries, key = { it.nexusId }) { e ->
+                val download = downloads.firstOrNull { ModManager.downloadModId(it) == e.nexusId }
+                ListEntryRow(e, e.nexusId in installed, download, e.nexusId in waiting, fomod != null) { request(listOf(e)) }
+            }
+        }
+        Rule()
+        Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
+            ModAction("DOWNLOAD ALL", missing > 0) { request(list.entries) }
+            ModAction("SHARE", true) { scope.launch { if (!ModLists.share(context, list)) ModManager.postNotice("Couldn't share the list") } }
+            if (!list.builtIn) ModAction(if (confirmDelete) "TAP AGAIN TO DELETE" else "DELETE LIST", true, danger = confirmDelete) {
+                if (!confirmDelete) confirmDelete = true else scope.launch { ModLists.delete(context, list); onBack() }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ListEntryRow(e: ModLists.Entry, installed: Boolean, download: ModManager.Download?, waiting: Boolean, optionsOpen: Boolean, onDownload: () -> Unit) {
+    val downloading = !installed && download?.state == ModManager.DlState.DOWNLOADING
+    Column(Modifier.fillMaxWidth().padding(vertical = 7.dp, horizontal = 4.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            SkyText(e.name, 17.sp, if (installed) Sky.Text else Sky.Body, 0.3.sp, modifier = Modifier.weight(1f))
+            Spacer(Modifier.width(10.dp))
+            when {
+                installed -> SkyText("✓", 20.sp, Sky.Text, 0.sp, modifier = Modifier.padding(end = 10.dp))
+                downloading -> SkyText(if ((download?.progress ?: -1f) >= 0f) "${((download?.progress ?: 0f) * 100).toInt()}%" else "…", 13.sp, Sky.Dim, 1.sp)
+                download?.state == ModManager.DlState.FAILED -> SkyText("RETRY", 13.sp, Sky.Text, 2.sp, modifier = Modifier.clickable(onClick = onDownload).padding(horizontal = 8.dp, vertical = 3.dp))
+                download?.state == ModManager.DlState.READY && optionsOpen -> SkyText("CHOOSE OPTIONS", 12.sp, Sky.Dim, 1.5.sp)
+                download?.state == ModManager.DlState.READY -> SkyText("INSTALL", 13.sp, Sky.Text, 2.sp, modifier = Modifier.clickable { ModManager.install(download.file) }.padding(horizontal = 8.dp, vertical = 3.dp))
+                waiting -> SkyText("QUEUED", 12.sp, Sky.Dim, 1.5.sp)
+                else -> SkyText("DOWNLOAD", 13.sp, Sky.Text, 2.sp, modifier = Modifier.clickable(onClick = onDownload).padding(horizontal = 8.dp, vertical = 3.dp))
+            }
+        }
+        if (downloading) {
+            val p = download?.progress ?: -1f
+            val bar = Modifier.fillMaxWidth().padding(top = 4.dp).height(3.dp)
+            if (p >= 0f) LinearProgressIndicator(progress = { p }, color = Sky.Text, trackColor = Sky.Faint, modifier = bar)
+            else LinearProgressIndicator(color = Sky.Text, trackColor = Sky.Faint, modifier = bar)
+        }
+    }
+}
+
+// ---------------------------------------------------------------- options
+
+@Composable
+private fun ModOptions(onInstallFile: () -> Unit, onImportFolder: () -> Unit) {
+    val values by LauncherSettings.values.collectAsState()
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(top = 6.dp)) {
+        SectionHeader("ADD MODS")
+        EntryRow("INSTALL FROM FILE", ".ZIP  .7Z  .RAR", onInstallFile)
+        EntryRow("IMPORT FROM PC", "EXPERIMENTAL · MOD ORGANIZER FOLDER", onImportFolder)
+        SectionHeader("NEXUS MODS")
+        val adult = LauncherSettings.adultMods
+        SelectorRow("SHOW ADULT-TAGGED MODS", adult.options, values[adult.key] ?: adult.default, { it.uppercase() }) { LauncherSettings.set(adult, it) }
     }
 }
 
 // ---------------------------------------------------------------- installed mods
 
 @Composable
-private fun InstalledList(mods: List<ModManager.InstalledMod>, onImport: () -> Unit, onGetMods: () -> Unit) {
+private fun InstalledList(mods: List<ModManager.InstalledMod>, onGetMods: () -> Unit) {
     var selected by remember { mutableStateOf<String?>(null) }
     var confirm by remember { mutableStateOf(false) }
     val sel = mods.firstOrNull { it.id == selected }
@@ -128,7 +257,7 @@ private fun InstalledList(mods: List<ModManager.InstalledMod>, onImport: () -> U
             Column(Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
                 SkyText("NO MODS INSTALLED", 18.sp, Sky.Dim, 3.sp)
                 Spacer(Modifier.height(10.dp))
-                SkyText("Tap GET MODS to browse Nexus Mods on the top screen,\nor install an archive you already have.", 14.sp, Sky.Faint, 0.5.sp,
+                SkyText("Tap GET MODS to browse Nexus Mods on the top screen.\nMOD LISTS and OPTIONS have more ways to add mods.", 14.sp, Sky.Faint, 0.5.sp,
                     light = true, align = TextAlign.Center, maxLines = 3)
             }
         } else LazyColumn(Modifier.weight(1f).fillMaxWidth()) {
@@ -152,11 +281,12 @@ private fun InstalledList(mods: List<ModManager.InstalledMod>, onImport: () -> U
                 }
             }
         }
-        Rule()
-        Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
-            ModAction("INSTALL FROM FILE", true, onTap = onImport)
-            ModAction(if (confirm) "CONFIRM DELETE" else "DELETE", sel != null, danger = confirm) {
-                if (!confirm) confirm = true else { sel?.let(ModManager::uninstall); selected = null }
+        if (sel != null) {
+            Rule()
+            Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
+                ModAction(if (confirm) "CONFIRM DELETE" else "DELETE", true, danger = confirm) {
+                    if (!confirm) confirm = true else { ModManager.uninstall(sel); selected = null }
+                }
             }
         }
     }

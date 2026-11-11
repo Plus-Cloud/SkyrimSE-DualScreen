@@ -1,0 +1,557 @@
+# SkyrimSE-DualScreen — English (master list)
+# Format:  id = text
+# {} is a value the app fills in (a number, a name, a version). Keep every {} in translations.
+# Words in CAPITALS are shown in capitals in the app; translations can use their language's natural casing
+# where capitals don't exist (Chinese, Japanese, Korean).
+# Skyrim's own words (skills, months, Health/Magicka/Stamina, item types) should use the game's official
+# translation for that language, so the companion matches the game.
+
+[common]
+common.back = BACK
+common.cancel = CANCEL
+common.done = DONE
+common.try_again = Try again
+common.continue = Continue
+common.checking = Checking…
+common.loading = Loading…
+common.none = None
+common.on = On
+common.off = Off
+common.shown = Shown
+common.hidden = Hidden
+common.enabled = Enabled
+common.disabled = Disabled
+common.recommended = RECOMMENDED
+common.next = NEXT ›
+common.skip = SKIP
+common.view = VIEW
+
+[setup]
+setup.step = STEP {} OF 3  ·  {}
+setup.step_files = FILES
+setup.step_game = YOUR GAME
+setup.step_steam = STEAM
+setup.welcome = Welcome
+setup.files_body1 = To play, this app needs to read your copy of Skyrim from your device's storage.
+setup.files_body2 = Allow file access on the next screen. It's only used for your Skyrim folder, its saves and the mods you install.
+setup.allow_access = Allow access
+setup.folder_title = Select your Skyrim folder
+setup.folder_body = Copy the "Skyrim Special Edition" folder from your PC's Steam library (steamapps/common) to the Thor, then choose it here. It's the one with SkyrimSE.exe and the Data folder. Nothing is downloaded: you play the copy you own.
+setup.select_folder = Select folder
+setup.folder_unreadable = Couldn't read that location. Try a folder on internal storage or the SD card.
+setup.folder_cant_open = That folder can't be opened.
+setup.folder_no_exe = No SkyrimSE.exe here. Pick the folder that contains SkyrimSE.exe and Data.
+setup.folder_wrong_version = This is Skyrim SE {}. SkyrimSE-DualScreen needs {}, the current Steam version: update Skyrim in Steam on your PC, then copy the folder over again.
+setup.finish_on_top = Finish setup on the top screen
+
+[steam]
+steam.no_internet_title = No internet connection
+steam.no_internet_body = The first sign-in to Steam needs Wi-Fi. After that you can play offline too. Turn on Wi-Fi and this continues by itself.
+steam.connecting = Connecting to Steam…
+steam.saved_session = Signing you in with your saved Steam session.
+steam.slow = This is taking longer than usual. Check that Wi-Fi is on. SkyrimSE-DualScreen keeps retrying.
+steam.play_offline = Play offline
+steam.sign_in_title = Sign in to Steam
+steam.sign_in_body = Skyrim checks with Steam that you own it, just like on PC. Sign in once and it signs in by itself after that, even offline. Your password goes straight to Steam and is never stored.
+steam.scan = Scan with the Steam app
+steam.scan_hint = Steam Guard → scan icon
+steam.qr_description = Steam sign-in QR code
+steam.or_account = Or use your account name
+steam.account_name = Steam account name
+steam.password = Password
+steam.sign_in = Sign in
+steam.check_phone = Check your phone
+steam.approve = Approve this sign-in in the Steam Mobile app.
+steam.code_app = Enter the Steam Guard code from your Steam app
+steam.code_email = Enter the code Steam sent to {}
+steam.code_wrong = That code didn't work. Try the new one.
+steam.code = Code
+steam.signing_in = Signing in…
+steam.signing_in_as = Signing in as {}…
+steam.checking_code = Checking code…
+steam.sign_in_failed = Sign-in failed. Check your username and password.
+steam.unreachable = Couldn't reach Steam: {}
+steam.your_email = your email
+
+[title]
+title.special_edition = SPECIAL EDITION
+title.play = Play
+title.starting = Starting…
+title.subtitle = SKYRIM SE  ·  DUAL SCREEN
+title.no_mods = NO MODS
+title.mods_off = MODS OFF
+title.mods_active = {} ACTIVE
+title.level = LEVEL {}
+title.last_saved = LAST SAVED
+title.update_available = UPDATE {} AVAILABLE  ·  TAP TO INSTALL
+title.update_downloading = DOWNLOADING UPDATE {}  ·  {}%
+title.offline = OFFLINE  ·  STEAM RECONNECTS WHEN WI-FI IS BACK
+title.preparing_companion = Preparing the companion…
+title.installing_drivers = Installing graphics drivers…
+title.linking_steam = Linking your Skyrim to Steam…
+title.link_failed = Couldn't link this folder to Skyrim SE on your Steam account. Is the folder named "Skyrim Special Edition" and do you own the game?
+title.preparing_game = Preparing the game…
+title.couldnt_start = Couldn't start: {}
+title.missing_files = SOME MODS ARE MISSING FILES
+title.and_more = …and {} more
+title.missing_files_body = Skyrim usually crashes on load like this. Get the missing mods in the Mod Manager, or turn these plugins off.
+title.play_without_mods = PLAY WITHOUT MODS ›
+title.play_anyway = PLAY ANYWAY
+
+[loading]
+loading.starting_steam = Starting Steam…
+loading.preparing = Preparing Skyrim…
+loading.starting = Starting Skyrim…
+loading.loading = Loading Skyrim…
+loading.first_windows = First launch: setting up Windows for Skyrim. This only happens once.
+loading.first_shaders = First launch: building shaders for your device. This takes a few minutes, only once.
+loading.still = Still loading. The first launch after an update or a new mod takes longest.
+loading.tip1 = Tap the minimap on the bottom screen to open the full map, then fast travel from there.
+loading.tip2 = Items, Magic, Quests and the Map on the bottom screen work while you play: the game keeps running.
+loading.tip3 = Favorites appear in the quick bar along the bottom screen: one tap to equip.
+loading.tip4 = Hide the game's compass or health bars from the bottom screen's settings if you'd rather use the companion.
+loading.tip5 = QUESTS on the bottom screen shows every objective. SHOW ON MAP takes you straight there.
+loading.tip6 = Mods you install from the launcher's Mod Manager are sorted into a working load order for you.
+loading.tip7 = Power › Cool in the launcher keeps the Thor coolest on long sessions.
+
+[engine]
+engine.preparing = Preparing the game engine
+engine.download_engine = Downloading the game engine
+engine.download_steam = Downloading Steam support
+engine.installing = Installing the game engine
+engine.download_proton = Downloading Proton
+engine.download_dxvk = Downloading DXVK
+engine.download_parts = Downloading engine parts
+engine.download_graphics = Downloading graphics files
+engine.first_setup = First-time setup · {}
+engine.no_space = Not enough free space on the Thor: the game engine needs about 3 GB the first time ({} MB free). Free some space, then open the app again.
+engine.relaunch = Steam is still getting ready. Starting Skyrim again…
+engine.finishing_setup = Finishing first-time setup…
+engine.framegen_off = Skyrim didn't start with Frame Generation on, so it's been turned off. Press Play again.
+engine.too_long = Skyrim took too long to start, so it was closed. Press Play to try again; if it keeps happening, restart the Thor.
+engine.didnt_start = Skyrim didn't start. Press Play to try again; if it keeps happening, restart the Thor.
+engine.overheat = Skyrim was closed to protect your Thor: it stayed at {}°C. Your game was saved first ("Overheat Save" in Load).
+
+[launcher]
+launcher.app_name = SKYRIMSE-DUALSCREEN
+launcher.running = Skyrim is running
+launcher.ready = Ready  ·  Steam connected
+launcher.sign_in_top = Sign in to Steam on the top screen
+launcher.ready_offline = Ready  ·  offline (Steam reconnects when Wi-Fi is back)
+launcher.no_internet = No internet: turn on Wi-Fi to sign in to Steam
+launcher.back_to_game = BACK TO GAME ›
+launcher.mod_manager = MOD MANAGER
+launcher.mods_count = {} mods  ·  {} plugins
+launcher.play_with_mods = PLAY WITH MODS
+launcher.mods_disabled_note = Skyrim starts without your mods' plugins. Your mods stay installed.
+launcher.display = DISPLAY
+launcher.resolution = RESOLUTION
+launcher.graphics = GRAPHICS
+launcher.graphics_thor = Thor
+launcher.graphics_low = Low
+launcher.graphics_medium = Medium
+launcher.graphics_high = High
+launcher.thor_note = Tuned for the Thor: blood and impact effects, weather and distant detail kept; the costly effects off.
+launcher.power = POWER
+launcher.power_cool = Cool
+launcher.power_balanced = Balanced
+launcher.power_max = Max
+launcher.power_cool_note = 30 FPS, prime core idle. Coolest and longest battery: good for long sessions.
+launcher.power_balanced_note = 40 FPS on every core: smooth on the Thor's 120 Hz screen. Noticeably cooler than Max, for long sessions.
+launcher.power_max_note = 60 FPS on every core: the full Skyrim experience. Runs warmest; best with the Thor's fan on.
+launcher.fps_limit = FPS LIMIT
+launcher.fps_smooth = SMOOTH AT {} HZ
+launcher.fps_uneven = UNEVEN AT {} HZ
+launcher.fps_unlimited = UNLIMITED
+launcher.fps_no_limit = NO LIMIT
+launcher.performance = PERFORMANCE
+launcher.perf_stats = PERFORMANCE STATS
+launcher.perf_full = Full
+launcher.perf_note = FPS: just the frame rate. FULL: FPS, CPU and GPU load, power and temperatures. In the corner of the game screen; also in game from ⚙.
+launcher.frame_gen = FRAME GEN (EXPERIMENTAL)
+launcher.lossless_dll = LOSSLESS SCALING DLL
+launcher.lossless_found = FOUND
+launcher.lossless_add = ADD Lossless.dll
+launcher.lossless_added = Lossless.dll added
+launcher.lossless_note = Frame generation needs Lossless.dll from your own Lossless Scaling (Steam › Lossless Scaling › Lossless.dll on your PC).
+launcher.dual_screen = DUAL SCREEN
+launcher.companion = IN-GAME COMPANION
+launcher.achievements = ACHIEVEMENTS
+launcher.steam_achievements = STEAM ACHIEVEMENTS
+launcher.unlock_popup = UNLOCK POPUP
+launcher.unlock_sound = UNLOCK SOUND
+launcher.advanced = ADVANCED
+launcher.overheat = OVERHEAT PROTECTION
+launcher.overheat_on_note = If the Thor stays above {}°C, Skyrim saves ("Overheat Save") and closes so it can cool down.
+launcher.overheat_off_note = Off: Skyrim keeps running however hot the Thor gets. The Thor still slows itself down to stay safe.
+launcher.translator = CPU TRANSLATOR
+launcher.driver = GRAPHICS DRIVER
+launcher.driver_system = System
+launcher.import_driver = IMPORT DRIVER
+launcher.driver_invalid = Not a valid driver package
+launcher.driver_installed = {} installed
+launcher.advanced_note = Only change these if you know you need to: the recommended ones are what Skyrim is tested with.
+launcher.updates = UPDATES
+launcher.check_updates = CHECK FOR UPDATES
+launcher.checking = CHECKING…
+launcher.up_to_date = UP TO DATE
+launcher.check_again = CHECK AGAIN
+launcher.check_failed = Couldn't check: {}. Check Wi-Fi and tap again.
+launcher.update_available = UPDATE AVAILABLE  ·  {}
+launcher.update_note = You have {}. Your saves, settings and mods are kept.
+launcher.install = INSTALL ›
+launcher.install_version = INSTALL {} ›
+launcher.downloading = DOWNLOADING {}%
+launcher.allow_installs = ALLOW INSTALLS ›
+launcher.allow_installs_note = Android asks once: allow SkyrimSE-DualScreen to install apps, then come back and it carries on.
+launcher.update_opened_page = Opened the download page: install the new APK from there.
+launcher.update_failed = Update failed
+launcher.update_incomplete = Download incomplete, check Wi-Fi and try again
+launcher.game = GAME
+launcher.skyrim_folder = SKYRIM FOLDER
+launcher.tap_again_change = TAP AGAIN TO CHANGE
+launcher.diagnostics = DIAGNOSTICS
+launcher.hide_diagnostics = HIDE DIAGNOSTICS
+launcher.footer = SKYRIMSE-DUALSCREEN {}  ·  PLUGIN {}  ·  FOR SKYRIM SE 1.7.104
+
+[companion]
+companion.tab_character = CHARACTER
+companion.tab_quests = QUESTS
+companion.tab_items = ITEMS
+companion.tab_magic = MAGIC
+companion.tab_map = MAP
+companion.load_save = Load a save to begin
+companion.dragonborn = Dragonborn
+companion.level = LEVEL {}
+companion.in_combat = IN COMBAT
+companion.health = HEALTH
+companion.magicka = MAGICKA
+companion.stamina = STAMINA
+companion.left_hand = LEFT HAND
+companion.right_hand = RIGHT HAND
+companion.shout_power = SHOUT / POWER
+companion.local_map = LOCAL MAP  ›
+companion.effects = EFFECTS
+companion.active_effects = ACTIVE EFFECTS
+companion.more = +{} MORE
+companion.gold = GOLD
+companion.carry = CARRY
+companion.weight = WEIGHT
+companion.seconds = {}s
+companion.minutes = {}m
+companion.hours = {}h
+companion.am = AM
+companion.pm = PM
+companion.date = {} of {}, 4E {}
+companion.day = Day {}
+companion.travelling = Travelling to {}
+companion.no_travel_enemies = You cannot fast travel when enemies are nearby
+companion.not_discovered = You haven't discovered {} yet
+companion.travel_failed = Couldn't fast travel there
+companion.favorites_hint = FAVORITES  ·  mark items and spells as favorites in game to quick-select them here
+companion.consumed = {} consumed
+companion.equipped_msg = {} equipped
+companion.unequipped_msg = {} unequipped
+companion.right_hand_msg = (right hand)
+companion.left_hand_msg = (left hand)
+companion.left = LEFT
+companion.right = RIGHT
+
+[walkthrough]
+walkthrough.step = {} OF {}
+walkthrough.begin = BEGIN ›
+walkthrough.character_title = YOUR CHARACTER
+walkthrough.character_body = Health, magicka and stamina, your skills and active effects, and a local map. Tap the map to open the world map, where you can fast travel.
+walkthrough.menus_title = MENUS ON THE BOTTOM SCREEN
+walkthrough.menus_body = Quests, Items and Magic work like the game's menus: equip, use and track right here while you play.
+walkthrough.quick_title = QUICK SELECT
+walkthrough.quick_body = Favourites sit along the bottom: tap one to equip it. If you like, ⚙ can hide the game's compass and health bars, since this screen shows them too.
+
+[quests]
+quests.main = MAIN QUESTS
+quests.faction = FACTION & DAEDRIC
+quests.side = SIDE QUESTS
+quests.misc = MISCELLANEOUS
+quests.completed = COMPLETED
+quests.none = NO ACTIVE QUESTS
+quests.active = ACTIVE
+quests.tracked = ◆ TRACKED
+quests.track = TRACK
+quests.show_on_map = SHOW ON MAP
+
+[items]
+items.favorites = FAVORITES
+items.equipped = EQUIPPED
+items.all = ALL
+items.weapons = WEAPONS
+items.apparel = APPAREL
+items.potions = POTIONS
+items.scrolls = SCROLLS
+items.food = FOOD
+items.ingredients = INGREDIENTS
+items.books = BOOKS
+items.keys = KEYS
+items.misc = MISC
+items.ammo = AMMO
+items.soul_gems = SOUL GEMS
+items.torches = TORCHES
+items.other = OTHER
+items.use = USE
+items.equip = EQUIP
+items.unequip = UNEQUIP
+items.type = TYPE
+items.damage = DAMAGE
+items.armor = ARMOR
+items.value = VALUE
+items.stolen = STOLEN
+items.sword = SWORD
+items.dagger = DAGGER
+items.war_axe = WAR AXE
+items.mace = MACE
+items.greatsword = GREATSWORD
+items.battleaxe_warhammer = BATTLEAXE / WARHAMMER
+items.bow = BOW
+items.crossbow = CROSSBOW
+items.staff = STAFF
+items.weapon = WEAPON
+items.light_armor = LIGHT ARMOR
+items.heavy_armor = HEAVY ARMOR
+items.clothing = CLOTHING
+
+[magic]
+magic.spells = SPELLS
+magic.powers = POWERS
+magic.lesser_powers = LESSER POWERS
+magic.shouts = SHOUTS
+magic.cost = COST
+
+[skills]
+skills.one_handed = One-Handed
+skills.two_handed = Two-Handed
+skills.archery = Archery
+skills.block = Block
+skills.smithing = Smithing
+skills.heavy_armor = Heavy Armor
+skills.light_armor = Light Armor
+skills.pickpocket = Pickpocket
+skills.lockpicking = Lockpicking
+skills.sneak = Sneak
+skills.alchemy = Alchemy
+skills.speech = Speech
+skills.alteration = Alteration
+skills.conjuration = Conjuration
+skills.destruction = Destruction
+skills.illusion = Illusion
+skills.restoration = Restoration
+skills.enchanting = Enchanting
+
+[months]
+months.1 = Morning Star
+months.2 = Sun's Dawn
+months.3 = First Seed
+months.4 = Rain's Hand
+months.5 = Second Seed
+months.6 = Midyear
+months.7 = Sun's Height
+months.8 = Last Seed
+months.9 = Hearthfire
+months.10 = Frostfall
+months.11 = Sun's Dusk
+months.12 = Evening Star
+
+[map]
+map.world = WORLD
+map.local = LOCAL
+map.me = ◎  ME
+map.inside = INSIDE
+map.charting = CHARTING…
+map.charting_title = CHARTING SKYRIM
+map.charting_body = Drawing the map from your game's terrain. This happens once.
+map.failed = The map couldn't be drawn
+map.no_map = No map for this place
+map.discovered = DISCOVERED
+map.undiscovered = UNDISCOVERED
+map.quest_target = QUEST TARGET
+map.hostile = HOSTILE
+map.follower = FOLLOWER
+map.interior = Interior
+map.wilderness = Wilderness
+map.fast_travel = FAST TRAVEL ›
+map.quest = QUEST
+map.unknown = Unknown
+
+[settings]
+settings.title = SETTINGS
+settings.resume = RESUME
+settings.game_hud = GAME HUD
+settings.game_compass = GAME COMPASS
+settings.game_bars = GAME HEALTH BARS
+settings.enemy_bar = ENEMY HEALTH BAR
+settings.companion = COMPANION
+settings.pause_menus = PAUSE IN MENUS
+settings.menu_sounds = MENU SOUNDS
+settings.haptics = HAPTICS
+settings.game = GAME
+settings.keyboard = ON-SCREEN KEYBOARD
+settings.keyboard_note = for naming your character
+settings.quicksave = QUICKSAVE
+settings.quicksaving = Quicksaving…
+settings.wait = WAIT
+settings.save_quit = SAVE AND QUIT TO LAUNCHER
+settings.saving_quitting = Saving, then quitting…
+settings.quit = QUIT TO LAUNCHER
+settings.quit_confirm = TAP AGAIN · UNSAVED PROGRESS IS LOST
+settings.mods_loaded = PLUGINS LOADED BY THE GAME ({})
+settings.mods_loaded_none = None. Install mods from the launcher's Mod Manager.
+
+[notices]
+notices.level = LEVEL INCREASED
+notices.level_body = You are now level {}
+notices.skill = SKILL INCREASED
+notices.quest_started = QUEST STARTED
+notices.quest_completed = QUEST COMPLETED
+notices.location = LOCATION DISCOVERED
+notices.mod_failed = MOD DIDN'T LOAD
+notices.achievement = ACHIEVEMENT UNLOCKED
+
+[achievements]
+achievements.title = ACHIEVEMENTS
+achievements.loading = Loading your achievements from Steam…
+achievements.connect = Connect to Steam to see your achievements.
+achievements.offline = Offline: showing your achievements as of the last time Steam was connected.
+achievements.hidden = Hidden achievement
+achievements.hidden_body = Keep playing to discover it.
+achievements.popup = Achievement Unlocked
+
+[mods]
+mods.title = MODS
+mods.load_order = LOAD ORDER
+mods.downloads = DOWNLOADS
+mods.summary = {} installed  ·  {} plugins active
+mods.nexus_signed_in = Nexus: {}
+mods.nexus_signed_out = Nexus: not signed in
+mods.get_mods = GET MODS ›
+mods.choose_folder_first = Choose your Skyrim folder first
+mods.downloading = Downloading {}
+mods.download_failed = Download failed: {}
+mods.copying = COPYING
+mods.unpacking = UNPACKING
+mods.installing = INSTALLING
+mods.removing = REMOVING
+mods.read_failed = Couldn't read that file: {}
+mods.close_to_install = Close Skyrim before installing mods
+mods.close_to_delete = Close Skyrim before deleting mods
+mods.archive_empty = The archive is empty
+mods.install_failed = Install failed: {}
+mods.nothing_selected = Nothing selected to install
+mods.removed = {} removed
+mods.remove_failed = Couldn't remove {}: {}
+mods.already_installed = {} is already installed
+mods.no_file = {} has no file to download
+
+[nexus]
+nexus.title = NEXUS MODS
+nexus.game = SKYRIM SPECIAL EDITION
+nexus.premium = PREMIUM MEMBER
+nexus.free = FREE MEMBER
+nexus.sign_out = SIGN OUT
+nexus.sign_in_first = Sign in to Nexus Mods first
+nexus.sign_in_failed = Couldn't sign in
+nexus.checking_key = Checking your key…
+nexus.key_rejected = Nexus API key rejected
+nexus.unreachable = Couldn't reach Nexus Mods: {}
+nexus.no_results = No mods found
+nexus.none_installed = No mods installed yet
+nexus.installed = INSTALLED
+nexus.stats_short = {} ENDORSEMENTS  ·  {} DL
+nexus.stats = {} ENDORSEMENTS   ·   {} DOWNLOADS
+nexus.load_failed = Couldn't load this mod
+nexus.byline = BY {}   ·   VERSION {}   ·   {}
+nexus.requires = REQUIRES
+nexus.needs = {} NEEDS
+nexus.needs_body = Without these the mod may not work, or the game may not start.
+nexus.get_first = GET THEM FIRST ›
+nexus.only_this = ONLY THIS MOD
+nexus.get = GET ›
+nexus.already_installed = ALREADY INSTALLED
+nexus.no_redownload = There's no need to download it again.
+nexus.no_files = No current files
+nexus.show_older = SHOW OLDER FILES
+nexus.hide_older = HIDE OLDER FILES
+nexus.download = DOWNLOAD ›
+nexus.downloading = DOWNLOADING…
+nexus.downloading_name = DOWNLOADING  ·  {}
+nexus.queued = {} MORE QUEUED
+nexus.one_tap = ONE TAP  ·  {}
+nexus.free_note = Nexus Mods asks free members to press SLOW DOWNLOAD themselves for each file. Everything after that happens here. Premium members never see this.
+nexus.choose_options = {}  ·  choose options on the bottom screen
+nexus.download_failed = Nexus download failed: {}
+
+[v103]
+v103.0 = SHOW ADULT-TAGGED MODS
+v103.1 = OPTIONS
+v103.2 = ADD MODS
+v103.3 = INSTALL FROM FILE
+v103.4 = IMPORT FROM PC
+v103.5 = MOD ORGANIZER FOLDER
+v103.6 = MOD LISTS
+v103.7 = SAVE MOD LIST
+v103.8 = LOAD MOD LIST
+v103.9 = NO MODS YET
+v103.10 = CONTROLS
+v103.11 = GYRO AIM
+v103.12 = GYRO SENSITIVITY
+v103.13 = Tilt the Thor to fine-tune your aim, on top of the right stick. Also in game from ⚙.
+v103.14 = DIM WITH GAME LIGHT
+v103.15 = REPORT A PROBLEM
+v103.16 = SHARE LOGS
+v103.17 = NAME
+v103.18 = NEWEST
+v103.19 = DROP
+v103.20 = DROP ALL
+v103.21 = Dropped {}
+v103.22 = Dropped {} ({})
+v103.23 = MODS BY {}  ·  {}
+v103.24 = SHOW ALL
+v103.25 = MORE BY {}  ›
+v103.26 = YOUR LATEST SAVE LOOKS DAMAGED
+v103.27 = Loading {} will probably crash Skyrim. Load an older save from the game's menu instead.
+v103.28 = YOUR LATEST SAVE USES MODS THAT ARE OFF
+v103.29 = Loading this save can crash Skyrim. Install or turn those mods back on, or start a new game or load another save from the game's menu.
+v103.30 = PLAY ANYWAY ›
+v103.31 = Skyrim got stuck starting with your mods, so PLAY WITH MODS has been turned off. Press Play to start without them.
+v103.32 = Skyrim closed unexpectedly. If it keeps happening, try turning PLAY WITH MODS off, or use Report a problem in the launcher's settings.
+v103.33 = QUIT APP
+v103.34 = TAP AGAIN TO QUIT
+v103.35 = Skyrim runs at {} FPS and generated frames fill in the rest, using your own Lossless.dll. Adds a little input delay. If Skyrim ever fails to start with it, it switches itself off.
+v103.36 = Mod list saved: {} mods
+v103.37 = {} mods queued
+v103.38 = {} mods imported
+v103.39 = Very High
+
+[v103b]
+v103b.0 = IMPORT A LIST
+v103b.1 = SAVE MY MODS AS A LIST
+v103b.2 = DOWNLOAD ALL
+v103b.3 = SHARE
+v103b.4 = DELETE LIST
+v103b.5 = TAP AGAIN TO DELETE
+v103b.6 = RETRY
+v103b.7 = CHOOSE OPTIONS
+v103b.8 = QUEUED
+v103b.9 = DOWNLOAD
+v103b.10 = {} of {} installed
+v103b.11 = RECOMMENDED  ·  {} of {} installed
+v103b.12 = {} added
+v103b.13 = {} saved
+v103b.14 = Tap GET MODS to browse Nexus Mods on the top screen.\nMOD LISTS and OPTIONS have more ways to add mods.
+
+[v103c]
+v103c.1 = EXPERIMENTAL · MOD ORGANIZER FOLDER
+v103c.2 = LANGUAGE  ·  {}  {}
+
+[v103d]
+v103d.1 = CUSTOM
+v103d.2 = SAVE LOGS · OPEN GITHUB
+v103d.3 = Report saved to {}. Attach it to the GitHub issue.
+v103d.4 = Moving your mods into the app for faster loading (one time)… {} of {}

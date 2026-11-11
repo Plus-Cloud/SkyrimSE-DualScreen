@@ -2,6 +2,7 @@ package com.skyrimayn
 
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.draw.drawWithContent
 import android.graphics.Typeface
 import androidx.compose.foundation.Canvas
@@ -52,7 +53,7 @@ internal fun SkyText(
     text: String, size: TextUnit = 18.sp, color: Color = Sky.Text, spacing: TextUnit = 2.sp,
     light: Boolean = false, modifier: Modifier = Modifier, align: TextAlign? = null, maxLines: Int = 1,
 ) = Text(
-    text, modifier = modifier, maxLines = maxLines, overflow = TextOverflow.Ellipsis, textAlign = align,
+    I18n.tr(text), modifier = modifier, maxLines = maxLines, overflow = TextOverflow.Ellipsis, textAlign = align,
     style = TextStyle(fontFamily = if (light) Sky.FontLight else Sky.Font, fontSize = size, color = color, letterSpacing = spacing),
 )
 
@@ -147,6 +148,7 @@ internal fun SkyFitText(
     text: String, maxSize: TextUnit, minSize: TextUnit, color: Color = Sky.Text, spacing: TextUnit = 2.sp,
     modifier: Modifier = Modifier, align: TextAlign? = null,
 ) {
+    val text = I18n.tr(text)
     // Measure first, then draw once at the largest size that fits: never blank, never a visible shrink.
     androidx.compose.foundation.layout.BoxWithConstraints(modifier) {
         val measurer = androidx.compose.ui.text.rememberTextMeasurer()
@@ -166,9 +168,10 @@ internal fun SkyFitText(
 }
 
 /**
- * FPS limit: ‹ › step through presets (20, 24, 30, 40, 60, 120, Unlimited), the slider picks anything between
- * [LauncherSettings.FPS_MIN] and [LauncherSettings.FPS_MAX], and its far end is Unlimited (stored as 0).
- * Values that divide the screen's top refresh rate evenly are marked SMOOTH. [onPick] runs when the finger lifts.
+ * FPS limit: ‹ › step through presets (20, 24, 30, 40, 60, 120, Unlimited) and Custom. Only Custom shows the
+ * slider, which picks anything between [LauncherSettings.FPS_MIN] and [LauncherSettings.FPS_MAX] and ends in
+ * Unlimited (stored as 0). Values that divide the screen's top refresh rate evenly are marked SMOOTH.
+ * [onPick] runs when the finger lifts.
  */
 @Composable
 internal fun FpsSlider(current: Int, onPick: (Int) -> Unit) {
@@ -187,16 +190,25 @@ internal fun FpsSlider(current: Int, onPick: (Int) -> Unit) {
                 .let { kotlin.math.round(it).toInt() }
         }.getOrNull()?.takeIf { it >= 30 } ?: 120
     }
-    val presets = (listOf(20, 24, 30, 40, 60, 90, 120).filter { it <= max && LauncherSettings.fpsIsSmooth(it, hz) } + unlimitedPos).distinct()
+    // Preset frame rates (0 = Unlimited), then Custom.
+    val presets = (listOf(20, 24, 30, 40, 60, 90, 120).filter { it <= max && LauncherSettings.fpsIsSmooth(it, hz) } + 0).distinct()
+    val settings by LauncherSettings.values.collectAsState()
+    val custom = settings[LauncherSettings.fpsCustom.key] == "On" || current !in presets
+    val index = if (custom) presets.size else presets.indexOf(current)
     fun step(dir: Int) {
-        val next = if (dir > 0) presets.firstOrNull { it > v } else presets.lastOrNull { it < v }
-        if (next != null) { v = next; onPick(toFps(next)) }
+        val next = index + dir
+        if (next !in 0..presets.size) return
+        if (next == presets.size) LauncherSettings.set(LauncherSettings.fpsCustom, "On")
+        else { LauncherSettings.set(LauncherSettings.fpsCustom, "Off"); onPick(presets[next]) }
     }
     val fps = toFps(v)
     androidx.compose.foundation.layout.Column(Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 4.dp)) {
         androidx.compose.foundation.layout.Row(verticalAlignment = Alignment.CenterVertically) {
-            SkyText("FPS LIMIT", 15.sp, Sky.Text, 2.sp, modifier = Modifier.weight(1f))
-            SkyText("‹", 22.sp, if (presets.any { it < v }) Sky.Text else Sky.Faint, 0.sp,
+            androidx.compose.foundation.layout.Column(Modifier.weight(1f)) {
+                SkyText("FPS LIMIT", 15.sp, Sky.Text, 2.sp)
+                if (custom) SkyText("CUSTOM", 9.sp, Sky.Dim, 1.5.sp)
+            }
+            SkyText("‹", 22.sp, if (index > 0) Sky.Text else Sky.Faint, 0.sp,
                 modifier = Modifier.clickable { step(-1) }.padding(horizontal = 14.dp, vertical = 2.dp))
             androidx.compose.foundation.layout.Column(Modifier.width(150.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 SkyText(if (fps == 0) "UNLIMITED" else "$fps", 20.sp, Sky.Text, 1.sp)
@@ -204,10 +216,10 @@ internal fun FpsSlider(current: Int, onPick: (Int) -> Unit) {
                 SkyText(when { fps == 0 -> "NO LIMIT"; smooth -> "SMOOTH AT $hz HZ"; else -> "UNEVEN AT $hz HZ" }, 9.sp,
                     if (fps == 0 || smooth) Sky.Dim else Sky.Faint, 1.5.sp)
             }
-            SkyText("›", 22.sp, if (presets.any { it > v }) Sky.Text else Sky.Faint, 0.sp,
+            SkyText("›", 22.sp, if (index < presets.size) Sky.Text else Sky.Faint, 0.sp,
                 modifier = Modifier.clickable { step(1) }.padding(horizontal = 14.dp, vertical = 2.dp))
         }
-        androidx.compose.material3.Slider(
+        if (custom) androidx.compose.material3.Slider(
             value = v.toFloat(),
             onValueChange = { v = kotlin.math.round(it).toInt() },
             onValueChangeFinished = { onPick(toFps(v)) },

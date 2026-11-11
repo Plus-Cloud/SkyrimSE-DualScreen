@@ -5,14 +5,12 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.foundation.border
 import androidx.compose.ui.draw.drawBehind
-import android.app.ActivityOptions
 import android.content.Intent
 import android.hardware.display.DisplayManager
 import android.net.Uri
 import android.os.Bundle
 import android.os.Environment
 import android.provider.Settings
-import android.view.Display
 import android.view.KeyEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -40,7 +38,6 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -73,7 +70,6 @@ import kotlinx.coroutines.launch
  */
 class MainActivity : ComponentActivity() {
 
-    private val displayManager by lazy { getSystemService(DisplayManager::class.java) }
     private var hasFileAccess by mutableStateOf(false)
     private var playHint by mutableStateOf<String?>(null)
     /** Bumped on every resume, so the title re-reads the latest save after a game session. */
@@ -88,26 +84,51 @@ class MainActivity : ComponentActivity() {
         GameFolder.init(this)
         ModManager.init(this)
         hasFileAccess = Environment.isExternalStorageManager()
-        if (savedInstanceState == null) openBottomScreen()
+        BottomScreenHost.init(application)
         hideSystemBars()
+        // Back on the launcher leaves the app like any other: both screens go to the background together
+        // (on its own, Back moved only this screen). An open warning closes first.
+        onBackPressedDispatcher.addCallback(this, object : androidx.activity.OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                when {
+                    modWarning != null -> modWarning = null
+                    saveWarning != null -> saveWarning = null
+                    launching -> Unit
+                    else -> BottomScreenHost.leaveApp()
+                }
+            }
+        })
 
         setContent {
             SkyrimAynTheme {
                 val gameDir by GameFolder.dir.collectAsState()
                 val steam by SkyrimEngine.steam.collectAsState()
+                val setup = !hasFileAccess || gameDir == null || (steam != SteamState.LOGGED_IN && steam != SteamState.OFFLINE)
+                Box(Modifier.fillMaxSize()) {
                 when {
                     !hasFileAccess -> FileAccessStep(onAllow = ::requestAllFilesAccess)
                     gameDir == null -> FolderStep()
                     steam != SteamState.LOGGED_IN && steam != SteamState.OFFLINE -> SteamStep(steam)
                     else -> {
-                        TitleScreen(onPlay = ::play, hint = playHint, busy = launching, refresh = resumes)
+                        // Updating from 1.0.2 or older: installed mods move into the app's storage once (see ModOverlay).
+                        val moving by ModOverlay.moving.collectAsState()
+                        TitleScreen(onPlay = ::play, refresh = resumes, busy = launching || moving != null,
+                            hint = moving?.let { (done, all) -> "Moving your mods into the app for faster loading (one time)… $done of $all" } ?: playHint)
                         modWarning?.let { broken ->
                             ModWarning(broken,
-                                onPlayAnyway = { modWarning = null; play(checkMods = false) },
-                                onWithoutMods = { modWarning = null; LauncherSettings.set(LauncherSettings.mods, "Disabled"); play(checkMods = false) },
+                                onPlayAnyway = { modWarning = null; play(checkMods = false, checkSave = true) },
+                                onWithoutMods = { modWarning = null; LauncherSettings.set(LauncherSettings.mods, "Disabled"); play(checkMods = false, checkSave = true) },
                                 onCancel = { modWarning = null })
                         }
+                        saveWarning?.let { problem ->
+                            SaveWarning(problem,
+                                onPlayAnyway = { saveWarning = null; SaveGames.acknowledge(this@MainActivity, problem); play(checkMods = false) },
+                                onCancel = { saveWarning = null })
+                        }
                     }
+                }
+                // First run: the language can be changed before anything else (English until chosen).
+                if (setup) SetupLanguage(Modifier.align(Alignment.TopEnd).padding(24.dp))
                 }
             }
         }
@@ -153,17 +174,29 @@ class MainActivity : ComponentActivity() {
     /** Plugins that need masters you don't have: the game would crash on load. Shown before Play. */
     private var modWarning by mutableStateOf<List<PluginEntry>?>(null)
 
+    /** The newest save may not load with the current mods: shown before Play. */
+    private var saveWarning by mutableStateOf<SaveGames.Problem?>(null)
+
     private fun play() = play(checkMods = true)
 
-    private fun play(checkMods: Boolean) {
+    private fun play(checkMods: Boolean, checkSave: Boolean = checkMods) {
         SkyrimEngine.launchNotice.value = null
         if (launching) return
-        val dir = GameFolder.dir.value ?: return
-        if (checkMods && LauncherSettings.get(LauncherSettings.mods) == "Enabled") {
+        val dir = GameFolder.modded() ?: return
+        if (checkMods || checkSave) {
             lifecycleScope.launch {
-                LoadOrder.load(this@MainActivity, dir); LoadOrder.autoSort(dir)
-                val broken = LoadOrder.plugins.value.filter { it.active && it.missingMasters.isNotEmpty() }
-                if (broken.isNotEmpty()) modWarning = broken else play(checkMods = false)
+                val withMods = LauncherSettings.get(LauncherSettings.mods) == "Enabled"
+                LoadOrder.load(this@MainActivity, dir)
+                if (checkMods && withMods) {
+                    LoadOrder.autoSort(dir)
+                    val broken = LoadOrder.plugins.value.filter { it.active && it.missingMasters.isNotEmpty() }
+                    if (broken.isNotEmpty()) { modWarning = broken; return@launch }
+                }
+                if (checkSave) {
+                    val active = LoadOrder.plugins.value.filter { it.locked || (withMods && it.active) }.map { it.name.lowercase() }.toSet()
+                    SaveGames.check(this@MainActivity, active)?.let { saveWarning = it; return@launch }
+                }
+                play(checkMods = false)
             }
             return
         }
@@ -205,22 +238,6 @@ class MainActivity : ComponentActivity() {
             .onFailure { startActivity(Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)) }
     }
 
-    /** Starts the launcher on the Thor's bottom display, then hands focus back to the top. */
-    private fun openBottomScreen() {
-        val target = displayManager.displays.firstOrNull { it.displayId != Display.DEFAULT_DISPLAY } ?: return
-        startActivity(
-            Intent(this, BottomScreenActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-            ActivityOptions.makeBasic().setLaunchDisplayId(target.displayId).toBundle(),
-        )
-        // Launching on the bottom display makes it the focused display, which would send
-        // controller keys there. A finish-at-once activity on the top display takes focus back.
-        window.decorView.postDelayed({
-            startActivity(
-                Intent(this, FocusTrampolineActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION),
-                ActivityOptions.makeBasic().setLaunchDisplayId(Display.DEFAULT_DISPLAY).toBundle(),
-            )
-        }, 400)
-    }
 }
 
 // ---------------------------------------------------------------- shared look
@@ -577,8 +594,10 @@ private fun TitleScreen(onPlay: () -> Unit, hint: String?, busy: Boolean, refres
                 modifier = Modifier.align(Alignment.TopEnd).padding(24.dp).background(Color(0x99000000)).padding(horizontal = 14.dp, vertical = 6.dp))
         val plugins by LoadOrder.plugins.collectAsState()
         val modsOn = LauncherSettings.get(LauncherSettings.mods) == "Enabled"
-        LaunchedEffect(Unit) { GameFolder.dir.value?.let { LoadOrder.load(context, it) } }
-        val active = plugins.count { !it.locked && it.active }
+        val mods by ModManager.mods.collectAsState()
+        LaunchedEffect(Unit) { ModManager.load(); GameFolder.modded()?.let { LoadOrder.load(context, it) } }
+        // Mods, not plugins: SKSE plugins and frameworks have no plugin file but are just as active.
+        val active = mods.size.takeIf { it > 0 } ?: plugins.count { !it.locked && it.active }
         Column(Modifier.align(Alignment.BottomEnd).padding(28.dp), horizontalAlignment = Alignment.End) {
             SkyText(if (!modsOn) "MODS OFF" else if (active == 0) "NO MODS" else "$active MOD${if (active == 1) "" else "S"} ACTIVE", 11.sp, Sky.Dim, 3.sp)
             SkyText("SKYRIM SE  ·  DUAL SCREEN", 11.sp, Sky.Faint, 4.sp)
@@ -608,6 +627,37 @@ private fun ContinueCard(s: SaveGames.Save, modifier: Modifier) {
     }
 }
 
+/** The newest save is damaged, or was made with mods that are now off: say so before it crashes on load. */
+@Composable
+private fun SaveWarning(problem: SaveGames.Problem, onPlayAnyway: () -> Unit, onCancel: () -> Unit) {
+    Box(Modifier.fillMaxSize().background(Color(0xE6000000)), contentAlignment = Alignment.Center) {
+        Column(Modifier.width(620.dp).background(Color(0xFF0B0B0B)).border(1.dp, Color(0x55FFFFFF)).padding(24.dp)) {
+            when (problem) {
+                is SaveGames.Problem.Damaged -> {
+                    SkyText("YOUR LATEST SAVE LOOKS DAMAGED", 20.sp, Sky.Text, 4.sp)
+                    Rule(Modifier.padding(vertical = 10.dp), color = Sky.Faint)
+                    SkyText("Loading ${problem.save.nameWithoutExtension.take(40)} will probably crash Skyrim. Load an older save from the game's menu instead.",
+                        14.sp, Sky.Body, 0.3.sp, light = true, maxLines = 3)
+                }
+                is SaveGames.Problem.MissingMods -> {
+                    SkyText("YOUR LATEST SAVE USES MODS THAT ARE OFF", 20.sp, Sky.Text, 3.sp)
+                    Rule(Modifier.padding(vertical = 10.dp), color = Sky.Faint)
+                    problem.mods.take(6).forEach { SkyText(it, 15.sp, Sky.Body, 0.3.sp, modifier = Modifier.padding(vertical = 2.dp)) }
+                    if (problem.mods.size > 6) SkyText("…and ${problem.mods.size - 6} more", 13.sp, Sky.Dim, 0.5.sp)
+                    SkyText("Loading this save can crash Skyrim. Install or turn those mods back on, or start a new game or load another save from the game's menu.",
+                        13.sp, Sky.Dim, 0.3.sp, light = true, maxLines = 3, modifier = Modifier.padding(top = 10.dp))
+                }
+            }
+            Row(Modifier.fillMaxWidth().padding(top = 18.dp), verticalAlignment = Alignment.CenterVertically) {
+                SkyText("PLAY ANYWAY ›", 15.sp, Sky.Text, 3.sp, modifier = Modifier.clickable(onClick = onPlayAnyway)
+                    .border(1.dp, Color(0x99FFFFFF)).padding(horizontal = 14.dp, vertical = 9.dp))
+                Spacer(Modifier.weight(1f))
+                SkyText("BACK", 13.sp, Sky.Dim, 2.sp, modifier = Modifier.clickable(onClick = onCancel).padding(9.dp))
+            }
+        }
+    }
+}
+
 /** "These mods need files you don't have": play anyway, play without mods, or go back. */
 @Composable
 private fun ModWarning(broken: List<PluginEntry>, onPlayAnyway: () -> Unit, onWithoutMods: () -> Unit, onCancel: () -> Unit) {
@@ -629,6 +679,29 @@ private fun ModWarning(broken: List<PluginEntry>, onPlayAnyway: () -> Unit, onWi
                 SkyText("PLAY ANYWAY", 13.sp, Sky.Body, 2.sp, modifier = Modifier.clickable(onClick = onPlayAnyway).padding(9.dp))
                 Spacer(Modifier.weight(1f))
                 SkyText("BACK", 13.sp, Sky.Dim, 2.sp, modifier = Modifier.clickable(onClick = onCancel).padding(9.dp))
+            }
+        }
+    }
+}
+
+/** First-run language choice, top right of the setup screens. */
+@Composable
+private fun SetupLanguage(modifier: Modifier) {
+    val values by LauncherSettings.values.collectAsState()
+    val current = values[LauncherSettings.language.key] ?: LauncherSettings.language.default
+    var open by remember { mutableStateOf(false) }
+    Column(modifier, horizontalAlignment = Alignment.End) {
+        SkyText("LANGUAGE  ·  ${current.uppercase()}  ${if (open) "▴" else "▾"}", 13.sp, Sky.Dim, 2.sp,
+            modifier = Modifier.clickable { open = !open }.padding(horizontal = 12.dp, vertical = 8.dp))
+        if (open) Column(
+            Modifier.background(Color(0xEE141414)).border(1.dp, Sky.Line).padding(vertical = 6.dp)
+                .height(360.dp).verticalScroll(androidx.compose.foundation.rememberScrollState()),
+            horizontalAlignment = Alignment.End,
+        ) {
+            LauncherSettings.language.options.filter { it != "System" }.forEach { name ->
+                SkyText(name, 16.sp, if (name == current) Sky.Text else Sky.Body, 0.5.sp,
+                    modifier = Modifier.clickable { LauncherSettings.set(LauncherSettings.language, name); open = false }
+                        .padding(horizontal = 18.dp, vertical = 7.dp))
             }
         }
     }

@@ -58,6 +58,9 @@ public abstract class WineUtils {
         for (String[] drive : container.drivesIterator()) {
             File linkTarget = new File(drive[1]);
             String path = linkTarget.getAbsolutePath();
+            // SkyrimAYN experiment: the game folder built in the app's own storage (see ModOverlay).
+            String overlay = com.skyrimayn.ModOverlay.activeDir();
+            if (drive[0].equals("A") && overlay != null) path = overlay;
             if (!linkTarget.isDirectory() && path.endsWith("/app.gamenative/storage")) {
                 linkTarget.mkdirs();
                 FileUtils.chmod(linkTarget, 0771);
@@ -71,6 +74,23 @@ public abstract class WineUtils {
                 } else if (PrefManager.INSTANCE.getCustomGameManualFolders().contains(path)) {
                     gameDirectoryPath = path;
                 }
+            }
+        }
+
+        // SkyrimAYN: the Steam path Skyrim is launched from must lead to the same folder as A: (only the link is replaced).
+        String overlayDir = com.skyrimayn.ModOverlay.activeDir();
+        String skyrimLinkTarget = overlayDir != null ? overlayDir : com.skyrimayn.GameFolder.INSTANCE.getDir().getValue();
+        if (skyrimLinkTarget != null) {
+            File link = new File(container.getRootDir(), ".wine/drive_c/Program Files (x86)/Steam/steamapps/common/" + new File(skyrimLinkTarget).getName());
+            try {
+                java.nio.file.Path lp = link.toPath();
+                if (java.nio.file.Files.isSymbolicLink(lp) && !java.nio.file.Files.readSymbolicLink(lp).toString().equals(skyrimLinkTarget)) {
+                    java.nio.file.Files.delete(lp);
+                    FileUtils.symlink(skyrimLinkTarget, link.getAbsolutePath());
+                    Log.i("WineUtils", "SkyrimAYN: Steam game link now points at " + skyrimLinkTarget);
+                }
+            } catch (IOException e) {
+                Log.w("WineUtils", "SkyrimAYN: couldn't repoint the Steam game link", e);
             }
         }
 

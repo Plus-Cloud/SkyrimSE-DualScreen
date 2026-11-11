@@ -16,6 +16,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -77,6 +78,8 @@ object ModManager {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val lock = Mutex()
+    /** Runs [block] when no install or removal is under way (a launch syncs the mods folder this way). */
+    suspend fun <T> whileIdle(block: () -> T): T = lock.withLock { block() }
     private lateinit var appContext: Context
     private val http by lazy {
         OkHttpClient.Builder().connectTimeout(30, TimeUnit.SECONDS).readTimeout(60, TimeUnit.SECONDS).followRedirects(true).build()
@@ -90,7 +93,10 @@ object ModManager {
         loadAccount()
     }
 
-    private fun gameDir(): File? = GameFolder.dir.value?.let(::File)
+    /** The player's Skyrim folder (game files, and SkyrimAYN/ with mods.json and downloads). */
+    private fun realGameDir(): File? = GameFolder.dir.value?.let(::File)
+    /** The folder mods are installed into: the mirror in the app's storage (see ModOverlay), once it exists. */
+    private fun gameDir(): File? = GameFolder.modded()?.let(::File)
     private fun root(game: File) = File(game, "SkyrimAYN")
     private fun dataDir(game: File) = File(game, "Data")
     private fun downloadsDir(game: File) = File(root(game), "downloads").apply { mkdirs() }
@@ -100,9 +106,31 @@ object ModManager {
     // ---------------------------------------------------------------- index
 
     suspend fun load() = withContext(Dispatchers.IO) {
-        val game = gameDir() ?: return@withContext
-        lock.withLock { readIndex(game) }
-        refreshDownloads(game)
+        val real = realGameDir() ?: return@withContext
+        lock.withLock {
+            val synced = runCatching { ModOverlay.sync(appContext.filesDir, real) }.onFailure { Timber.e(it, "SkyrimAYN: mods folder sync failed") }.isSuccess
+            val game = gameDir() ?: return@withLock
+            readIndex(game)
+            if (synced) restoreMissing(game)
+        }
+        gameDir()?.let(::refreshDownloads)
+    }
+
+    /**
+     * Mods whose files are gone (the app was uninstalled, which deletes its storage) are unpacked again from
+     * their saved archives, so nothing needs downloading. Mods with an installer (FOMOD) ask their options again.
+     */
+    private fun restoreMissing(game: File) {
+        val gone = _mods.value.filter { m ->
+            m.files.isNotEmpty() && m.files.none { rel -> target(game, rel).let { it.isFile && !java.nio.file.Files.isSymbolicLink(it.toPath()) } }
+        }
+        if (gone.isEmpty()) return
+        gone.forEach { m -> m.files.forEach { rel -> owners[rel.lowercase()]?.let { st -> st.remove(m.id); if (st.isEmpty() || st == listOf("_base")) owners.remove(rel.lowercase()) } } }
+        writeIndex(game, _mods.value.filter { it !in gone })
+        val archives = gone.mapNotNull { m -> File(downloadsDir(game), m.archive).takeIf { it.isFile } }
+        Timber.i("SkyrimAYN: ${gone.size} mods missing their files; reinstalling ${archives.size} from saved downloads")
+        if (archives.isNotEmpty()) _notice.value = "Reinstalling ${archives.size} mod${if (archives.size == 1) "" else "s"} from your saved downloads"
+        archives.forEach(::install)
     }
 
     private fun indexFile(game: File) = File(root(game), "mods.json")
@@ -267,15 +295,29 @@ object ModManager {
         return Triple(base.replace('_', ' ').trim(), "", 0)
     }
 
+    private val installQueue = kotlinx.coroutines.channels.Channel<File>(kotlinx.coroutines.channels.Channel.UNLIMITED)
+    private var installerRunning = false
+
+    /** Installs one at a time. A mod with an options installer holds the next ones back until the player has answered it. */
     fun install(archive: File) {
-        scope.launch {
+        synchronized(installQueue) {
+            if (!installerRunning) {
+                installerRunning = true
+                scope.launch { for (next in installQueue) { installNow(next); _fomod.first { it == null } } }
+            }
+        }
+        installQueue.trySend(archive)
+    }
+
+    private suspend fun installNow(archive: File) {
+        run {
             lock.withLock {
                 val game = gameDir() ?: return@withLock
                 if (gameRunning()) { _notice.value = "Close Skyrim before installing mods"; return@withLock }
                 readIndex(game)
                 val (name, version) = prettyName(archive.name)
                 val id = slug(name, _mods.value.map { it.id }.toSet())
-                val staging = File(root(game), "staging/$id")
+                val staging = File(ModOverlay.stagingDir(appContext.filesDir), id)
                 try {
                     _busy.value = Busy("UNPACKING", name, 0f)
                     ModArchiveExtractor.extract(archive, staging) { p ->
@@ -291,7 +333,9 @@ object ModManager {
                         }
                     }
                     // The Script Extender itself (from its official Nexus page) installs its loader and DLL into the game folder.
-                    val isSkse = nexusMeta[archive.name]?.modId == SKSE_NEXUS_ID || archive.name.startsWith("skse64_", true)
+                    // By the Nexus id in the file name too: an archive installed from a file, or reinstalled later, has no download record.
+                    val isSkse = nexusMeta[archive.name]?.modId == SKSE_NEXUS_ID || archive.name.startsWith("skse64_", true) ||
+                        parseNexusName(archive.name).third == SKSE_NEXUS_ID
                     val files = mapArchive(staging, isSkse)
                     if (files.isEmpty()) throw IOException("The archive is empty")
                     deploy(game, id, name, version, archive.name, files, move = true)
@@ -343,7 +387,8 @@ object ModManager {
                             files[dest.ifEmpty { m.source.replace('\\', '/').trim('/') }] = src
                         }
                     }
-                    if (files.isEmpty()) throw IOException("Nothing selected to install")
+                    // Only a readme means none of the real options were picked.
+                    if (files.isEmpty() || files.keys.all { it.endsWith(".txt", true) }) throw IOException("Nothing selected to install")
                     _fomod.value = null
                     deploy(game, s.id, s.modName, s.version, s.archive.name, files, move = false)
                 } catch (e: Exception) {
@@ -460,13 +505,14 @@ object ModManager {
     private suspend fun deploy(game: File, id: String, name: String, version: String, archive: String, files: Map<String, File>, move: Boolean) {
         SaveGames.backup(appContext, game)
         val data = dataDir(game)
-        val backup = File(root(game), "backup")
+        val backup = ModOverlay.backupDir(appContext.filesDir)
         var size = 0L
         var done = 0
         val placed = ArrayList<String>()
         for ((rel, src) in files) {
             val key = rel.lowercase()
             val dst = target(game, rel)
+            ModOverlay.materialize(game, dst)   // never write through a link into the player's folder
             val stack = owners.getOrPut(key) { if (dst.exists()) mutableListOf("_base") else mutableListOf() }
             if (dst.exists() && stack.isNotEmpty()) {
                 val bak = File(backup, "${stack.last()}/${backupRel(rel)}")
@@ -475,6 +521,7 @@ object ModManager {
                 moveFile(dst, bak)
             }
             dst.parentFile?.mkdirs()
+            if (java.nio.file.Files.isSymbolicLink(dst.toPath())) java.nio.file.Files.delete(dst.toPath())
             size += src.length()
             if (move) moveFile(src, dst) else src.copyTo(dst, overwrite = true)
             stack.remove(id)
@@ -509,7 +556,7 @@ object ModManager {
                 if (gameRunning()) { _notice.value = "Close Skyrim before deleting mods"; return@withLock }
                 readIndex(game)
                 val data = dataDir(game)
-                val backup = File(root(game), "backup")
+                val backup = ModOverlay.backupDir(appContext.filesDir)
                 _busy.value = Busy("REMOVING", mod.name)
                 SaveGames.backup(appContext, game)
                 try {
@@ -710,6 +757,97 @@ object ModManager {
                 }
             }
             _freeConfirm.value = FreeConfirm(mod, file)
+        }
+    }
+
+    // ---------------------------------------------------------------- mod lists
+
+    /** Which Nexus mod a download belongs to. */
+    fun downloadModId(d: Download): Int = nexusMeta[d.file.name]?.modId ?: parseNexusName(d.file.name).third
+
+    /** Nexus mods waiting their turn, including the one waiting on a free-account confirmation. */
+    fun queuedMods(): Set<Int> = synchronized(queue) { queue.map { it.first.modId }.toSet() } + listOfNotNull(_freeConfirm.value?.mod?.modId)
+
+    fun postNotice(message: String) { _notice.value = message }
+
+    /**
+     * Queues mods from a list, skipping what's installed or already on its way. Premium accounts download them
+     * by themselves; free accounts get Nexus's confirmation one file at a time, opening by itself.
+     */
+    fun requestFromList(entries: List<ModLists.Entry>, plugins: List<Pair<String, Boolean>>, openNexus: () -> Unit) {
+        scope.launch {
+            if (apiKey() == null) {
+                _notice.value = "Sign in to Nexus Mods first"
+                withContext(Dispatchers.Main) { openNexus() }
+                return@launch
+            }
+            if (plugins.isNotEmpty()) LoadOrder.writeImported(appContext, plugins)
+            val busyIds = _downloads.value.filter { it.state == DlState.DOWNLOADING }.map(::downloadModId).toSet() + queuedMods()
+            val wanted = entries.filter { it.nexusId > 0 && it.nexusId !in installedNexusIds() && it.nexusId !in busyIds }
+            var opened = false
+            for (e in wanted) {
+                try {
+                    val mod = NexusApi.mod(e.nexusId).first
+                    val files = NexusApi.files(e.nexusId)
+                    // The exact file the list was made with; if the author removed it, their current main file.
+                    val file = files.firstOrNull { it.fileId == e.fileId }
+                        ?: files.firstOrNull { it.category == "MAIN" && it.primary } ?: files.firstOrNull { it.category == "MAIN" } ?: files.firstOrNull { it.current }
+                    if (file == null) { _notice.value = "${e.name} has no file to download"; continue }
+                    enqueue(mod, file)
+                    if (!opened && _account.value?.premium != true) { opened = true; withContext(Dispatchers.Main) { openNexus() } }
+                } catch (x: Exception) {
+                    Timber.w(x, "SkyrimAYN: couldn't read %s from Nexus", e.name)
+                    _notice.value = "Couldn't get ${e.name}: ${x.message}"
+                }
+            }
+        }
+    }
+
+    /**
+     * Copies a whole setup from a folder brought over from another device: a Mod Organizer 2 or Wabbajack
+     * install (mods/, profiles/, overwrite/) in its own priority order, or just a folder of mod folders.
+     */
+    fun importFolder(path: String) {
+        scope.launch {
+            lock.withLock {
+                val game = gameDir() ?: return@withLock
+                if (gameRunning()) { _notice.value = "Close Skyrim before installing mods"; return@withLock }
+                try {
+                    readIndex(game)
+                    val source = File(path)
+                    val modsRoot = File(source, "mods").takeIf { it.isDirectory } ?: source
+                    val profile = File(source, "profiles").listFiles { f -> f.isDirectory && File(f, "modlist.txt").isFile }?.maxByOrNull { File(it, "modlist.txt").lastModified() }
+                    val names = profile?.let { File(it, "modlist.txt").readLines() }
+                        // modlist.txt lists the highest priority first; installing lowest first gets conflicts right.
+                        ?.filter { it.startsWith("+") }?.map { it.drop(1).trim() }?.filterNot { it.endsWith("_separator") }?.reversed()
+                        ?: modsRoot.listFiles { f -> f.isDirectory }?.map { it.name }?.sortedBy { it.lowercase() }.orEmpty()
+                    val folders = names.map { File(modsRoot, it) }.filter { it.isDirectory } + listOfNotNull(File(source, "overwrite").takeIf { d -> d.list()?.isNotEmpty() == true })
+                    if (folders.isEmpty()) throw IOException("No mods found in that folder")
+                    var imported = 0
+                    for ((i, folder) in folders.withIndex()) {
+                        if (_mods.value.any { it.name.equals(folder.name, true) }) continue
+                        _busy.value = Busy("IMPORTING ${i + 1} OF ${folders.size}", folder.name, i.toFloat() / folders.size)
+                        val files = mapArchive(folder)
+                        if (files.isEmpty()) continue
+                        val meta = File(folder, "meta.ini").takeIf { it.isFile }?.readLines().orEmpty()
+                        fun field(key: String) = meta.firstOrNull { it.substringAfterLast('\\').startsWith("$key=", true) }?.substringAfter('=')?.trim().orEmpty()
+                        val source2 = "imported:${folder.name}"
+                        nexusMeta[source2] = NexusMeta(field("modid").toIntOrNull() ?: 0, folder.name, field("version"), field("fileid").toIntOrNull() ?: 0)
+                        deploy(game, slug(folder.name, _mods.value.map { it.id }.toSet()), folder.name, field("version"), source2, files, move = false)
+                        imported++
+                    }
+                    profile?.let { File(it, "plugins.txt") }?.takeIf { it.isFile }?.readLines()?.map { it.trim() }
+                        ?.filter { it.isNotEmpty() && !it.startsWith("#") }
+                        ?.map { it.removePrefix("*") to it.startsWith("*") }
+                        ?.let { LoadOrder.writeImported(appContext, it) }
+                    _notice.value = "$imported mods imported"
+                } catch (e: Exception) {
+                    Timber.w(e, "SkyrimAYN: folder import failed")
+                    _notice.value = "Import failed: ${e.message}"
+                } finally {
+                    _busy.value = null
+                }
+            }
         }
     }
 

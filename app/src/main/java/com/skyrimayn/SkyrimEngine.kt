@@ -21,6 +21,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -46,7 +47,7 @@ object SkyrimEngine {
     const val CONTAINER_ID = "STEAM_489830"
     const val SYSTEM_DRIVER = "System"
     /** Version of the bundled SKSE plugin (SkyrimAYN.dll). */
-    const val PLUGIN_VERSION = "0.20"
+    const val PLUGIN_VERSION = "0.22"
     const val DEFAULT_DRIVER = "Turnip Adreno Driver T30 (@Mr_Purple_666)"
     /** Proton build Skyrim is tested with (arm64ec: the game's x86-64 code runs through FEX inside Wine). */
     const val WINE_VERSION = "proton-10.0-arm64ec-2"
@@ -147,6 +148,8 @@ object SkyrimEngine {
         return game to launcher
     }
 
+    /** Set when a launch with mods on reached Skyrim's window but never got as far as its main menu. */
+    @Volatile private var modsStuck = false
     /** Set when the 5-minute watchdog closed a launch that never showed Skyrim. */
     @Volatile private var launchStuck = false
     /** The current launch (its start time); cleared when Wine exits, so an old watchdog never fires. */
@@ -160,7 +163,17 @@ object SkyrimEngine {
         launchToken = 0L
         val shown = _gameWindow.value
         _gameWindow.value = false
-        if (shown) { appCtx?.getSharedPreferences("launcher", 0)?.edit()?.putBoolean("ever_started", true)?.apply(); return }
+        if (modsStuck) {
+            modsStuck = false
+            LauncherSettings.set(LauncherSettings.mods, "Disabled")
+            launchNotice.value = "Skyrim got stuck starting with your mods, so PLAY WITH MODS has been turned off. Press Play to start without them."
+        }
+        if (shown) {
+            appCtx?.getSharedPreferences("launcher", 0)?.edit()?.putBoolean("ever_started", true)?.apply()
+            if (status != 0 && !closedByUs && launchNotice.value == null)
+                launchNotice.value = "Skyrim closed unexpectedly. If it keeps happening, try turning PLAY WITH MODS off, or use Report a problem in the launcher's settings."
+            return
+        }
         if (steamRestart) {
             steamRestart = false
             if (quickRetries < 2) {
@@ -210,6 +223,7 @@ object SkyrimEngine {
 
     /** (Re)starts the Steam service. The engine stops it when its own screen closes. */
     fun ensureSteam(context: Context) {
+        if (BottomScreenHost.quitting) return     // the app is closing: don't bring Steam back
         if (SteamService.instance != null && SteamService.isRunning) return
         val app = context.applicationContext
         runCatching { app.startForegroundService(Intent(app, SteamService::class.java)) }
@@ -259,7 +273,18 @@ object SkyrimEngine {
     // ------------------------------------------------------------ game folder
 
     /** SKSE's own files are in the game folder (optional: some mods need it; the companion doesn't). */
-    fun skseInstalled(gameDir: String) = File(gameDir, "skse64_loader.exe").isFile && File(gameDir, "skse64_1_7_104.dll").isFile
+    /** Offline launches: SkyrimSE.exe becomes the copy without Steam's protection; the original is kept for online. */
+    private fun useUnpackedExe(dir: File) = runCatching {
+        val exe = File(dir, "SkyrimSE.exe")
+        val unpacked = File(dir, "SkyrimSE.exe.unpacked.exe")
+        val original = File(dir, "SkyrimSE.exe.original.exe")
+        if (exe.length() == unpacked.length()) return@runCatching
+        if (!original.isFile) exe.copyTo(original)
+        unpacked.copyTo(exe, overwrite = true)
+        Timber.i("SkyrimAYN: offline, SkyrimSE.exe switched to the unpacked copy")
+    }.onFailure { Timber.w(it, "SkyrimAYN: couldn't switch to the unpacked SkyrimSE.exe") }
+
+    fun skseInstalled(gameDir: String) =File(gameDir, "skse64_loader.exe").isFile && File(gameDir, "skse64_1_7_104.dll").isFile
 
     /**
      * Copies the companion into the game folder: SkyrimAYN.dll plus our dinput8.dll, which loads it when SKSE
@@ -462,6 +487,7 @@ object SkyrimEngine {
         }
         c.setScreenSize("${w}x$h")
         GameFolder.dir.value?.let { gameDir ->
+            ModManager.whileIdle { ModOverlay.prepare(context.filesDir, File(gameDir)) }
             runCatching {
                 SkyrimIni.applyLauncherSettings(c.rootDir, gameDir, w, h, LauncherSettings.get(LauncherSettings.quality))
             }.onFailure { Timber.e(it, "SkyrimAYN: couldn't write Skyrim INIs") }
@@ -480,7 +506,8 @@ object SkyrimEngine {
         c.setUseLegacyDRM(false)
         c.setUnpackFiles(false)
         // Through SKSE when the player installed it (mods need it); otherwise straight to the game.
-        val skse = GameFolder.dir.value?.let(::skseInstalled) == true
+        // Mods off means their SKSE plugins too: a bad plugin must not be able to hang the "without mods" launch.
+        val skse = ModOverlay.activeDir()?.let(::skseInstalled) == true
         c.setExecutablePath(if (skse) "skse64_loader.exe" else "SkyrimSE.exe")
         if (offlineLaunch()) {
             // No internet: Steam can't sign in, and Skyrim's copy protection won't start without it. Use the
@@ -490,6 +517,10 @@ object SkyrimEngine {
             c.setLaunchBionicSteam(false)
             c.setUseLegacyDRM(true)
             val unpacked = GameFolder.dir.value?.let { File(it, "SkyrimSE.exe.unpacked.exe").isFile } == true
+            // The engine only swaps in the unpacked copy of the exe it launches. With SKSE that's the loader, and
+            // SkyrimSE.exe stays the protected original (online launches put it back), so Skyrim quits at its
+            // Steam check and the launch loops. Swap SkyrimSE.exe ourselves.
+            if (unpacked) GameFolder.dir.value?.let { useUnpackedExe(File(it)) }
             if (!unpacked) {
                 c.setNeedsUnpacking(true)
                 // Steamless processes the launch exe; with SKSE that's the loader, so scan for SkyrimSE.exe too.
@@ -504,7 +535,15 @@ object SkyrimEngine {
         val fg = LauncherSettings.get(LauncherSettings.frameGen)
         val lsfg = fg != "Off" && app.gamenative.utils.LsfgVkManager.isSupported(c) && app.gamenative.utils.LsfgVkManager.isDllAvailable()
         c.putExtra(app.gamenative.utils.LsfgVkManager.EXTRA_ARMED, lsfg.toString())
-        if (lsfg) c.putExtra(app.gamenative.utils.LsfgVkManager.EXTRA_MULTIPLIER, fg.removeSuffix("X"))
+        if (lsfg) c.putExtra(app.gamenative.utils.LsfgVkManager.EXTRA_MULTIPLIER, LauncherSettings.frameGenMultiplier(fg))
+        // A read-only save (Windows can't replace it) would make every quicksave and autosave fail quietly.
+        runCatching {
+            SaveGames.dir(context).listFiles()?.filter { !it.canWrite() }?.forEach {
+                Timber.w("SkyrimAYN: save was read-only, fixing: ${it.name}"); it.setWritable(true, true)
+            }
+        }
+        // Gyro aim is off (taken out in 1.0.3).
+        gyroSettings(false).saveTo(c, persist = false)
         Timber.i("SkyrimAYN: frame generation $fg (armed=$lsfg, supported=${app.gamenative.utils.LsfgVkManager.isSupported(c)})")
         c.setCPUList(LauncherSettings.cpuListFor(LauncherSettings.get(LauncherSettings.power)))
         val env = EnvVars(c.envVars)
@@ -518,7 +557,7 @@ object SkyrimEngine {
         // DLLs in the game folder that must win over Wine's own: our dinput8.dll (loads the companion plugin)
         // and mod preloaders, e.g. SSE Engine Fixes part 2's d3dx9_42.dll ("did not pre-load" otherwise).
         // Never d3d11/dxgi: those are DXVK's.
-        env.put("WINEDLLOVERRIDES", dllOverrides(env.get("WINEDLLOVERRIDES"), GameFolder.dir.value?.let(::File)))
+        env.put("WINEDLLOVERRIDES", dllOverrides(env.get("WINEDLLOVERRIDES"), (ModOverlay.activeDir() ?: GameFolder.dir.value)?.let(::File)))
         Timber.i("SkyrimAYN: WINEDLLOVERRIDES=${env.get("WINEDLLOVERRIDES")}")
         c.setEnvVars(env.toString())
         c.saveData()
@@ -636,7 +675,8 @@ object SkyrimEngine {
     val menuRequests: kotlinx.coroutines.flow.SharedFlow<Unit> = _menuRequests
     fun requestMenu() { _menuRequests.tryEmit(Unit) }
 
-    fun showKeyboard() { engineKeyboard?.invoke() }
+    /** The keyboard for typing into the game (naming your character): on the bottom screen, else the engine's own. */
+    fun showKeyboard() { if (!BottomScreenHost.openKeyboard()) engineKeyboard?.invoke() }
 
     /** FPS overlay on the top screen, as chosen in settings. */
     fun applyPerfHud() {
@@ -669,10 +709,43 @@ object SkyrimEngine {
     /** Shows or hides parts of the game's HUD (the companion shows them instead). */
     fun applyHud() = Link.send(Proto.CMD_SET_HUD, LauncherSettings.hudMask())
 
+    /**
+     * Gyro aim as mouse movement, so the camera follows the Thor directly in any direction. Through the
+     * right stick it was clunky: the game's deadzone and stick curve eat small tilts. Steadying holds it still at rest.
+     */
+    private fun gyroSettings(on: Boolean, sensitivity: Float = LauncherSettings.gyroSensitivityValue()) = app.gamenative.data.GyroSettings(
+        mode = if (on) app.gamenative.data.GyroSettings.MODE_MOUSE else app.gamenative.data.GyroSettings.MODE_DISABLED,
+        lastTarget = app.gamenative.data.GyroSettings.MODE_MOUSE,
+        sensitivity = sensitivity, steadyingDegreesPerSecond = 0.8f,
+        conversionStyle = app.gamenative.data.GyroSettings.CONVERSION_PLAYER_SPACE,
+    )
+
+    @Volatile private var closedByUs = false
+
+    private var lastGameBack = 0L
+    /** Back in game: opens our settings on the bottom screen; pressed twice quickly, leaves the app (both screens). */
+    fun onGameBack() {
+        val now = android.os.SystemClock.uptimeMillis()
+        if (now - lastGameBack < 800) { lastGameBack = 0L; BottomScreenHost.leaveApp() }
+        else { lastGameBack = now; requestMenu() }
+    }
+
     /** Closes Skyrim and returns to the launcher. */
     fun quitGame() {
+        closedByUs = true
         app.gamenative.PluviaApp.events.emit(app.gamenative.events.SteamEvent.ForceCloseApp)
     }
+
+    @Volatile private var quitHandledFor = 0L
+    /** Quit in Skyrim's own menu: close it the same way as the companion's Quit, once per launch. */
+    fun onGameQuitRequested() {
+        if (quitHandledFor == launchToken) return
+        quitHandledFor = launchToken
+        Timber.i("SkyrimAYN: Quit chosen in the game's menu; closing")
+        quitGame()
+    }
+
+    fun dropItem(formId: Int, count: Int) = Link.send(Proto.CMD_DROP_ITEM, formId, count)
 
     /** Taps a key in the game (through the engine's X server). */
     fun tapKey(key: com.winlator.xserver.XKeycode) {
@@ -703,6 +776,7 @@ object SkyrimEngine {
         launchToken = started
         launchStuck = false
         steamRestart = false
+        closedByUs = false
         if (!retrying) quickRetries = 0
         retrying = false
         _gameWindow.value = false
@@ -741,6 +815,22 @@ object SkyrimEngine {
                         quitGame()
                         break
                     }
+                }
+                delay(1000)
+            }
+        }
+        // A mod can hang Skyrim after its window opens. The plugin's heartbeat keeps going, so a live link that
+        // never reports the main menu means stuck, not merely slow. Turn mods off for the next try.
+        if (LauncherSettings.get(LauncherSettings.mods) == "Enabled") scope.launch {
+            while (launchToken == started && !_gameWindow.value) delay(1000)
+            val windowAt = System.currentTimeMillis()
+            while (launchToken == started && !Link.showing.value) {
+                // Generous: a big mod list can sit for over three minutes before it visibly starts loading.
+                if (System.currentTimeMillis() - windowAt > 8 * 60_000L && Link.state.value.status == LinkStatus.LIVE) {
+                    Timber.w("SkyrimAYN: no main menu 8 minutes after the window opened; closing and turning mods off")
+                    modsStuck = true
+                    quitGame()
+                    break
                 }
                 delay(1000)
             }

@@ -51,7 +51,7 @@
 // ---------------------------------------------------------------- plugin info
 extern "C" __declspec(dllexport) SKSEPluginVersionData SKSEPlugin_Version = {
     SKSEPluginVersionData::kVersion,
-    20,                                 // plugin version 0.20
+    22,                                 // plugin version 0.22
     "SkyrimAYN",
     "Skyrim AYN",
     "",
@@ -75,7 +75,10 @@ constexpr uint32_t fMmap = 1, fFile = 2, fPlayer = 4, fLists = 8, fInGame = 16, 
 // v0.18: the game is showing something (its main menu, a loading screen or the world): the app's loading
 // screen stays up until then, so the player never sits on Skyrim's black start-up window.
 constexpr uint32_t fShowing = 128;
-enum Cmd : uint32_t { Ping = 1, EquipItem = 2, UnequipItem = 3, UseItem = 4, SetSpellHotkey = 5, SetHud = 6, FastTravel = 7, TrackQuest = 8, SaveGame = 9 };
+// v0.22: depth of field stays on (quicksave needs it) but its blur strength is 0 in every image space.
+// v0.21: the player chose Quit in the game's own menu; the app closes the game the way the companion's Quit does.
+constexpr uint32_t fQuitting = 256;
+enum Cmd : uint32_t { Ping = 1, EquipItem = 2, UnequipItem = 3, UseItem = 4, SetSpellHotkey = 5, SetHud = 6, FastTravel = 7, TrackQuest = 8, SaveGame = 9, DropItem = 10 };
 constexpr uint32_t kPauseWant = 4120, kPauseBeat = 4124;   // app-held pause request (byte) and its heartbeat
 constexpr uint32_t kEffects = 700, kEffectEntries = 704, kEffectSize = 48, kMaxEffects = 12;
 }
@@ -202,6 +205,7 @@ static void CollectInventory(PlayerCharacter* pc, std::vector<std::pair<TESForm*
                     if (xl->HasType(kExtraData_Worn)) a.flags |= 1;
                     if (xl->HasType(kExtraData_WornLeft)) a.flags |= 2;
                     if (xl->HasType(kExtraData_Hotkey)) a.flags |= 4;
+                    if (xl->HasType(kExtraData_AliasInstanceArray)) a.flags |= 16;   // held by a quest: can't be dropped
                 }
             }
         }
@@ -306,6 +310,10 @@ static void WriteLoadedMods() {
 
 }
 
+// Actor::GetLightLevel (what Papyrus and stealth use), 1.7.104.
+typedef float (*_GetLightLevelFn)(Actor*);
+static RelocAddr<_GetLightLevelFn> GetLightLevelFn(0x006A4030);
+
 static void WritePlayer(PlayerCharacter* pc, SInt32 gold, uint32_t& flags) {
     if (!pc || !pc->parentCell) return;
     ActorValueOwner& av = pc->actorValueOwner;
@@ -337,6 +345,7 @@ static void WritePlayer(PlayerCharacter* pc, SInt32 gold, uint32_t& flags) {
     Put<uint8_t>(352, (pc->actorState.flags04 & ActorState::kState_Sneaking) ? 1 : 0);
     Put<uint8_t>(353, pc->actorState.IsWeaponDrawn() ? 1 : 0);
     Put<uint8_t>(354, (pc->parentCell->unk040 & 1) ? 1 : 0);   // interior cell
+    Put<float>(3040, GetLightLevelFn(pc));                    // how lit the player is: the bottom screen dims with it
     Put<float>(356, GlobalValue(0x38));                       // GameHour
     Put<uint32_t>(360, (uint32_t)GlobalValue(0x39));          // GameDaysPassed
     PutStr(364, 48, NameOf(pc->currentWorldSpace));
@@ -468,7 +477,7 @@ static bool g_hudLogged = false;
 
 class HudTask : public UIDelegate_v1 {
 public:
-    explicit HudTask(uint32_t mask) : m_mask(mask) {}
+    explicit HudTask(uint32_t mask, bool onlyHidden = false) : m_mask(mask), m_onlyHidden(onlyHidden) {}
     void Run() override {
         MenuManager* mm = MenuManager::GetSingleton();
         if (!mm) return;
@@ -483,6 +492,7 @@ public:
             { 4, "_root.HUDMovieBaseInstance.EnemyHealth_mc" },
         };
         for (auto& part : parts) {
+            if (m_onlyHidden && !(m_mask & part.bit)) continue;
             std::string var = std::string(part.path) + "._visible";
             if (!g_hudLogged) {
                 GFxValue probe;
@@ -497,6 +507,7 @@ public:
     void Dispose() override { delete this; }
 private:
     uint32_t m_mask;
+    bool m_onlyHidden;
 };
 
 // ---------------------------------------------------------------- the game's own compass (v0.11)
@@ -516,6 +527,8 @@ public:
         BSFixedString hudName("HUD Menu");
         IMenu* menu = mm->GetMenu(&hudName);
         if (!menu || !menu->view) return;
+        // Runs every frame: crouching and standing make the HUD show hidden parts again for a moment.
+        if (uint32_t hidden = g_hudMask.load(std::memory_order_relaxed)) { HudTask rehide(hidden, true); rehide.Run(); }
         GFxMovieView* v = menu->view;
         auto num = [v](const char* path, double& out) {
             GFxValue x; if (!v->GetVariable(&x, path) || x.GetType() != GFxValue::kType_Number) return false;
@@ -602,6 +615,59 @@ public:
     void Dispose() override { delete this; }
 };
 
+// ObjectReference::RemoveItem is virtual 0x56 of TESObjectREFR; reason 3 is "dropping", which leaves the item at the feet.
+typedef UInt32* (*_RemoveItemFn)(TESObjectREFR*, UInt32*, TESForm*, SInt32, UInt32, BaseExtraList*, TESObjectREFR*, const NiPoint3*, const NiPoint3*);
+static bool SafeDrop(TESObjectREFR* who, TESForm* item, SInt32 count, BaseExtraList* extra) {
+    __try {
+        UInt32 handle = 0;
+        reinterpret_cast<_RemoveItemFn>((*reinterpret_cast<void***>(who))[0x56])(who, &handle, item, count, 3, extra, nullptr, nullptr, nullptr);
+        return true;
+    } __except (EXCEPTION_EXECUTE_HANDLER) { return false; }
+}
+
+/** Drops [count] of an item at the player's feet, like the inventory's Drop. Runs on the main thread. */
+class DropTask : public TaskDelegate {
+public:
+    DropTask(TESForm* item, SInt32 count) : m_item(item), m_count(count) {}
+    void Run() override {
+        PlayerCharacter* pc = *g_thePlayer;
+        if (!pc) return;
+        // Plain copies drop with no extra data; a tempered or enchanted copy has to be named by its own list.
+        BaseExtraList* extra = nullptr;
+        SInt32 total = 0, inLists = 0;
+        std::vector<std::pair<TESForm*, ItemAgg>> items; SInt32 gold;
+        CollectInventory(pc, items, gold);
+        for (auto& [f, ag] : items) if (f == m_item) total = ag.count;
+        auto* changes = static_cast<ExtraContainerChanges*>(pc->extraData.GetByType(kExtraData_ContainerChanges));
+        if (changes && changes->data && changes->data->objList) {
+            for (auto it = changes->data->objList->Begin(); !it.End(); ++it) {
+                InventoryEntryData* e = it.Get();
+                if (!e || e->type != m_item || !e->extendDataList) continue;
+                for (auto x = e->extendDataList->Begin(); !x.End(); ++x) {
+                    BaseExtraList* xl = x.Get();
+                    if (!xl) continue;
+                    if (xl->HasType(kExtraData_AliasInstanceArray)) return;     // a quest needs this item
+                    if (xl->HasType(kExtraData_Worn) || xl->HasType(kExtraData_WornLeft)) { inLists++; continue; }
+                    ExtraCount* c = static_cast<ExtraCount*>(xl->GetByType(kExtraData_Count));
+                    inLists += c ? c->count : 1;
+                    if (!extra) extra = xl;
+                }
+            }
+        }
+        SInt32 count = m_count;
+        if (total - inLists >= count) extra = nullptr;      // enough plain copies
+        else if (extra) count = 1;                          // one list at a time
+        else return;                                        // only worn copies left
+        bool ok = SafeDrop(pc, m_item, count, extra);
+        Log("drop %08X x%d -> %s", m_item->formID, count, ok ? "ok" : "FAILED");
+        g_listsDirty = true;
+    }
+    void Dispose() override { delete this; }
+private:
+    TESForm* m_item;
+    SInt32 m_count;
+};
+
 static uint32_t RunCommand(uint32_t id, const uint32_t a[4]) {
     PlayerCharacter* pc = *g_thePlayer;
     if (id == L::Ping) return a[0];
@@ -677,6 +743,10 @@ static uint32_t RunCommand(uint32_t id, const uint32_t a[4]) {
         }
         case L::SetHud:
             g_hudMask = a[0];
+            return 0;
+        case L::DropItem:
+            if (a[1] == 0) return 3;
+            QueueMain(new DropTask(form, (SInt32)a[1]));
             return 0;
         case L::TrackQuest: {
             // The journal's "track" toggle: the quest's Active flag (0x800), which drives its compass and map markers.
@@ -1342,12 +1412,53 @@ static DWORD WINAPI CompassPump(void*) {
     }
 }
 
+// Main::quitGame (+0x10), set once the player confirms Quit in the game's own menus.
+// ---------------------------------------------------------------- no depth-of-field blur
+// Skyrim only quicksaves and autosaves with TAA or depth of field on (with both off they quietly do nothing),
+// so the app keeps depth of field on. This takes the blur itself away: every image space's DoF strength
+// (ImageSpaceBaseData.depthOfField.strength, data+0x40) becomes 0, as "no distant blur" mods do in their
+// plugins. Once, as soon as the game's data is loaded.
+static bool g_blurDone = false;
+static void NoDepthOfFieldBlur() {
+    if (g_blurDone) return;
+    DataHandler* dh = *g_dataHandler;
+    if (!dh || dh->arrIMGS.count == 0) return;
+    UInt32 n = 0;
+    __try {
+        for (UInt32 i = 0; i < dh->arrIMGS.count; ++i) {
+            TESForm* f = dh->arrIMGS[i];
+            if (!f || f->formType != kFormType_ImageSpace) continue;
+            float* strength = reinterpret_cast<float*>(reinterpret_cast<uint8_t*>(f) + 0x20 + 0x40);
+            if (*strength != 0.f) { *strength = 0.f; ++n; }
+        }
+    } __except (EXCEPTION_EXECUTE_HANDLER) { Log("dof: failed"); }
+    g_blurDone = true;
+    Log("dof: blur off in %u of %u image spaces", n, dh->arrIMGS.count);
+}
+
+static RelocPtr<void*> g_mainObject(0x03230530);
+
 static DWORD WINAPI Scheduler(void*) {
     const DWORD sleepMs = 1000 / g_tickHz;
+    bool quitArmed = false;     // only a change from false to true counts
     for (;;) {
         Sleep(sleepMs);
         const ULONGLONG tick = GetTickCount64();
+        NoDepthOfFieldBlur();
         ApplyPause(tick);
+        if (void* game = *g_mainObject) {
+            const bool quit = Rd<uint8_t>(game, 0x10) != 0;
+            if (!quit) quitArmed = true;
+            else if (quitArmed) {
+                EnterCriticalSection(&g_page0Lock);
+                BeginPage0();
+                Put<uint64_t>(L::kFrame, ++g_frame);
+                Put<uint32_t>(L::kFlags, Get<uint32_t>(L::kFlags) | L::fQuitting);
+                EndPage0();
+                LeaveCriticalSection(&g_page0Lock);
+                FlushViewOfFile(g_view, 0);
+            }
+        }
         if (Get<uint32_t>(L::kCmd) != g_lastCmd) {
             bool q = false;
             if (g_cmdQueued.compare_exchange_strong(q, true)) QueueUi(new CmdTask());
@@ -1513,7 +1624,19 @@ static bool OpenLink() {
     return true;
 }
 
+/** One line in the plugin log for bug reports; the game's own handling (and any crash logger) carries on. */
+static LONG WINAPI CrashNote(EXCEPTION_POINTERS* e) {
+    uintptr_t at = reinterpret_cast<uintptr_t>(e->ExceptionRecord->ExceptionAddress);
+    HMODULE owner = nullptr;
+    wchar_t name[MAX_PATH] = L"?";
+    if (GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, reinterpret_cast<LPCWSTR>(at), &owner))
+        GetModuleFileNameW(owner, name, MAX_PATH);
+    Log("CRASH code %08lX in %ls +0x%llX", e->ExceptionRecord->ExceptionCode, name, (unsigned long long)(at - reinterpret_cast<uintptr_t>(owner)));
+    return EXCEPTION_CONTINUE_SEARCH;
+}
+
 static void StartLink() {
+    SetUnhandledExceptionFilter(CrashNote);
     if (!OpenLink()) { Log("link unavailable, plugin idle"); return; }
     Log("link: %ls at %u Hz", g_path.c_str(), g_tickHz);
     InitializeCriticalSection(&g_page0Lock);

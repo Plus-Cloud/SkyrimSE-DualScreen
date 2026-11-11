@@ -34,6 +34,16 @@ object GameFolder {
         _dir.value = ctx!!.getSharedPreferences(PREFS, 0).getString(KEY, null)
     }
 
+    /**
+     * The game folder as the mod manager and a modded launch see it: the mirror in the app's storage (the
+     * player's files plus the mods, see ModOverlay) once it exists, otherwise the player's folder.
+     */
+    fun modded(): String? {
+        val d = _dir.value ?: return null
+        val c = ctx ?: return d
+        return ModOverlay.rootFor(c.filesDir, File(d)).takeIf { it.isDirectory }?.path ?: d
+    }
+
     fun save(path: String) {
         _dir.value = path
         ctx?.getSharedPreferences(PREFS, 0)?.edit()?.putString(KEY, path)?.apply()

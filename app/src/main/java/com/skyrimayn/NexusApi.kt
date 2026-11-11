@@ -83,11 +83,18 @@ object NexusApi {
         )
     }
 
-    /** One page of mods: by search text (relevance) or a sort. Returns the page and the total count. */
-    suspend fun browse(query: String?, sort: Sort, offset: Int, count: Int = 24): Pair<List<Mod>, Int> = withContext(Dispatchers.IO) {
+    /** The name to search by when a mod credits several people: "EnaiSiaion and AVGVS" is EnaiSiaion. */
+    fun mainAuthor(author: String): String = author.split(Regex("\\s+(?:and|und|&)\\s+|,|\\s+-\\s+")).first().trim()
+
+    /**
+     * One page of mods: by search text (relevance) or a sort, optionally only one [author]'s.
+     * Adult-tagged mods are left out unless [adult]. Returns the page and the total count.
+     */
+    suspend fun browse(query: String?, sort: Sort, offset: Int, count: Int = 24, author: String? = null, adult: Boolean = false): Pair<List<Mod>, Int> = withContext(Dispatchers.IO) {
         val filter = JSONObject()
             .put("gameDomainName", JSONArray().put(JSONObject().put("value", GAME_DOMAIN).put("op", "EQUALS")))
-            .put("adultContent", JSONArray().put(JSONObject().put("value", false).put("op", "EQUALS")))
+        if (!adult) filter.put("adultContent", JSONArray().put(JSONObject().put("value", false).put("op", "EQUALS")))
+        if (!author.isNullOrBlank()) filter.put("author", JSONArray().put(JSONObject().put("value", author).put("op", "EQUALS")))
         val q = query?.trim().orEmpty()
         if (q.isNotEmpty()) filter.put("nameStemmed", JSONArray().put(JSONObject().put("value", q).put("op", "MATCHES")))
         val sortKey = if (q.isNotEmpty()) "relevance" else sort.field

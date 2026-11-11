@@ -44,28 +44,133 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
- * Bottom screen: the launcher (settings, mod manager) and, while Skyrim runs, the companion.
- *
- * Focus: like OpenMW-DS, the window starts focusable (so it doesn't ANR) and then drops focus,
- * so the controller keeps driving the top screen. Touch still works.
+ * Opens Android's keyboard on the bottom screen. Two uses:
+ *  - typing into the game (naming your character): keys go straight to Skyrim;
+ *  - typing into a text box on the top screen (Nexus search, Steam sign-in): what you type shows here above the
+ *    keyboard and fills the box on top as you go.
+ * The companion isn't an activity (it's drawn by [BottomScreenHost] as part of the top screen's window); this
+ * activity exists only while the keyboard is up, because Android puts its keyboard on the screen whose window has
+ * focus. The companion steps aside meanwhile (a dark screen behind the keyboard). Closing the keyboard, Back or
+ * the keyboard's action key ends it and gives focus back to the top screen.
  */
 class BottomScreenActivity : ComponentActivity() {
+    private var receiver: app.gamenative.externaldisplay.IMEInputReceiver? = null
+    private var field: android.widget.EditText? = null
+    private var imeShown = false
+    private var closing = false
+    private var helperShown = false
+
+    override fun onDestroy() {
+        if (helperShown) { helperShown = false; BottomScreenHost.helperOpen(false) }
+        super.onDestroy()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        Link.start(this)
-        LauncherSettings.init(this)
-        GameFolder.init(this)
-        SkyrimEngine.refreshDrivers(this)
-        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        setContent { SkyrimAynTheme { BottomRoot() } }
-        window.decorView.post { window.addFlags(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE) }
+        val text = BottomScreenHost.textRequest
+        val xs = app.gamenative.PluviaApp.xServerView?.getxServer()
+        if (text == null && xs == null) { close(); return }
+        BottomScreenHost.helperOpen(true)
+        helperShown = true
+        window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.BLACK))
+        val root = android.widget.FrameLayout(this)
+        if (text != null) {
+            val density = resources.displayMetrics.density
+            val box = android.widget.LinearLayout(this).apply {
+                orientation = android.widget.LinearLayout.VERTICAL
+                setPadding((32 * density).toInt(), (28 * density).toInt(), (32 * density).toInt(), 0)
+            }
+            box.addView(android.widget.TextView(this).apply {
+                this.text = text.label.uppercase()
+                setTextColor(0xFF9A9A9A.toInt()); textSize = 13f; letterSpacing = 0.2f
+            })
+            val edit = android.widget.EditText(this).apply {
+                // Input type first: setting it afterwards would turn single-line off (Enter would add a new line).
+                inputType = if (text.password) android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+                    else android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+                isSingleLine = true
+                imeOptions = text.action or android.view.inputmethod.EditorInfo.IME_FLAG_NO_EXTRACT_UI
+                setText(text.initial); setSelection(text.initial.length)
+                setTextColor(0xFFEDEBE6.toInt()); setHintTextColor(0xFF5A5A5A.toInt()); textSize = 22f
+                hint = text.label
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    setColor(0xFF141414.toInt()); setStroke((1 * density).toInt().coerceAtLeast(1), 0xFF6E6A60.toInt())
+                }
+                setPadding((16 * density).toInt(), (12 * density).toInt(), (16 * density).toInt(), (12 * density).toInt())
+                // Without this the old theme paints its own (light, orange-edged) focus highlight over the box.
+                if (android.os.Build.VERSION.SDK_INT >= 26) defaultFocusHighlightEnabled = false
+                if (android.os.Build.VERSION.SDK_INT >= 29) textCursorDrawable = android.graphics.drawable.GradientDrawable().apply {
+                    setColor(0xFFEDEBE6.toInt()); setSize((2 * density).toInt(), 0)
+                }
+                addTextChangedListener(object : android.text.TextWatcher {
+                    override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) = Unit
+                    override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) = Unit
+                    override fun afterTextChanged(s: android.text.Editable?) {
+                        val value = s?.toString().orEmpty()
+                        // A keyboard that sends Enter as a new line: treat it as the action key.
+                        if ('\n' in value) { text.onChange(value.replace("\n", "")); text.onDone(); close() }
+                        else text.onChange(value)
+                    }
+                })
+                setOnEditorActionListener { _, _, _ -> text.onDone(); close(); true }
+            }
+            box.addView(edit, android.widget.LinearLayout.LayoutParams(android.view.ViewGroup.LayoutParams.MATCH_PARENT, android.view.ViewGroup.LayoutParams.WRAP_CONTENT))
+            root.addView(box)
+            field = edit
+        } else {
+            receiver = app.gamenative.externaldisplay.IMEInputReceiver(this, xs!!).also {
+                it.alpha = 0f
+                root.addView(it, android.view.ViewGroup.LayoutParams(1, 1))
+            }
+        }
+        setContentView(root)
+        androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(window.decorView) { v, insets ->
+            val visible = insets.isVisible(androidx.core.view.WindowInsetsCompat.Type.ime())
+            if (visible) imeShown = true else if (imeShown) close()
+            androidx.core.view.ViewCompat.onApplyWindowInsets(v, insets)
+        }
+        onBackPressedDispatcher.addCallback(this, object : androidx.activity.OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() = close()
+        })
+        ask()
+        // Never linger if the keyboard didn't come up.
+        window.decorView.postDelayed({ if (!imeShown) close() }, 3000)
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus && !imeShown && !closing) ask()
+    }
+
+    private fun ask() {
+        val controller = androidx.core.view.WindowCompat.getInsetsController(window, window.decorView)
+        field?.let { f ->
+            f.requestFocus()
+            f.post {
+                (getSystemService(INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager).showSoftInput(f, 0)
+                controller.show(androidx.core.view.WindowInsetsCompat.Type.ime())
+            }
+            return
+        }
+        val r = receiver ?: return
+        r.showKeyboard()
+        r.post { controller.show(androidx.core.view.WindowInsetsCompat.Type.ime()) }
+    }
+
+    private fun close() {
+        if (closing) return
+        closing = true
+        receiver?.hideKeyboard()
+        BottomScreenHost.keyboardClosed()
+        finishAndRemoveTask()
+        overridePendingTransition(0, 0)
     }
 }
 
 private enum class Page { LAUNCHER, MODS, ACHIEVEMENTS }
 
 @Composable
-private fun BottomRoot() {
+internal fun BottomRoot() {
     var page by remember { mutableStateOf(Page.LAUNCHER) }
     var forceLauncher by remember { mutableStateOf(false) }
     val gameDir by GameFolder.dir.collectAsState()
@@ -84,7 +189,7 @@ private fun BottomRoot() {
             gameDir == null -> SetupWaiting()
             gameRunning && companionOn && !forceLauncher -> CompanionScreen(onLauncher = { forceLauncher = true })
             fomod != null -> FomodWizard(fomod!!)
-            page == Page.MODS -> ModManagerPage(gameDir!!, onBack = { page = Page.LAUNCHER })
+            page == Page.MODS -> ModManagerPage(GameFolder.modded() ?: gameDir!!, onBack = { page = Page.LAUNCHER })
             page == Page.ACHIEVEMENTS -> AchievementsPage(onBack = { page = Page.LAUNCHER })
             else -> LauncherPage(
                 gameRunning = gameRunning && companionOn,
@@ -93,8 +198,24 @@ private fun BottomRoot() {
                 onAchievements = { page = Page.ACHIEVEMENTS },
             )
         }
+        if (gameRunning && companionOn && !forceLauncher && values[LauncherSettings.gameLightDim.key] != "Off") GameLightDim()
     }
 }
+
+/** Darkens the companion in dark places. Draws only: touches pass straight through. */
+@Composable
+private fun GameLightDim() {
+    val player by Link.player.collectAsState()
+    val light = player?.lightLevel ?: BRIGHT_LIGHT
+    val target = (((BRIGHT_LIGHT - light) / (BRIGHT_LIGHT - DARK_LIGHT)).coerceIn(0f, 1f) * MAX_DIM)
+    val dim by androidx.compose.animation.core.animateFloatAsState(target, androidx.compose.animation.core.tween(900), label = "dim")
+    Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = dim)))
+}
+
+// The game's stealth light scale: at or above BRIGHT no dimming, at or below DARK the most.
+private const val BRIGHT_LIGHT = 60f
+private const val DARK_LIGHT = 10f
+private const val MAX_DIM = 0.45f
 
 @Composable
 private fun SetupWaiting() {
@@ -161,7 +282,7 @@ internal fun LauncherPage(gameRunning: Boolean, onBackToGame: () -> Unit, onMods
     var notice by remember { mutableStateOf<String?>(null) }
     var showDiagnostics by remember { mutableStateOf(false) }
     LaunchedEffect(notice) { if (notice != null) { delay(2500); notice = null } }
-    LaunchedEffect(gameDir) { gameDir?.let { LoadOrder.load(context, it) } }
+    LaunchedEffect(gameDir) { GameFolder.modded()?.let { LoadOrder.load(context, it) } }
 
     var dllFound by remember { mutableStateOf(SkyrimEngine.losslessDllAvailable()) }
     val dllImporter = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -199,6 +320,12 @@ internal fun LauncherPage(gameRunning: Boolean, onBackToGame: () -> Unit, onMods
                 )
             }
             if (gameRunning) SkyText("BACK TO GAME ›", 15.sp, Sky.Text, 2.sp, modifier = Modifier.clickable(onClick = onBackToGame).padding(8.dp))
+            else if (!ModManager.gameRunning()) {
+                var confirmQuit by remember { mutableStateOf(false) }
+                LaunchedEffect(confirmQuit) { if (confirmQuit) { delay(3000); confirmQuit = false } }
+                SkyText(if (confirmQuit) "TAP AGAIN TO QUIT" else "QUIT APP", 13.sp, if (confirmQuit) Sky.Text else Sky.Dim, 2.sp,
+                    modifier = Modifier.clickable { if (confirmQuit) BottomScreenHost.quitApp(context) else confirmQuit = true }.padding(8.dp))
+            }
         }
         Rule(Modifier.padding(top = 8.dp))
         UpdateCard(update)
@@ -235,9 +362,12 @@ internal fun LauncherPage(gameRunning: Boolean, onBackToGame: () -> Unit, onMods
         Selector(LauncherSettings.perfHud, values, label = "PERFORMANCE STATS") { SkyrimEngine.applyPerfHud() }
         SkyText("FPS: just the frame rate. FULL: FPS, CPU and GPU load, power and temperatures. In the corner of the game screen; also in game from ⚙.",
             11.sp, Sky.Faint, 0.5.sp, light = true, maxLines = 2, modifier = Modifier.padding(start = 6.dp, bottom = 4.dp))
-        Selector(LauncherSettings.frameGen, values, label = "FRAME GEN (EXPERIMENTAL)")
+        Selector(LauncherSettings.frameGen, values, label = "FRAME GEN (EXPERIMENTAL)") { fg ->
+            LauncherSettings.frameGenBaseFps(fg)?.let { LauncherSettings.set(LauncherSettings.fpsCap, it); SkyrimEngine.applyFrameLimit() }
+        }
         if ((values[LauncherSettings.frameGen.key] ?: "Off") != "Off")
-            SkyText("Doubles (or triples) the frames shown, using your own Lossless.dll. Adds a little input delay. If Skyrim ever fails to start with it, it switches itself off.",
+            SkyText((LauncherSettings.frameGenBaseFps(values[LauncherSettings.frameGen.key] ?: "Off")?.let { "Skyrim runs at $it FPS and generated frames fill in the rest, using your own Lossless.dll." }
+                ?: "Doubles (or triples) the frames shown, using your own Lossless.dll.") + " Adds a little input delay. If Skyrim ever fails to start with it, it switches itself off.",
                 11.sp, Sky.Faint, 0.5.sp, light = true, maxLines = 2, modifier = Modifier.padding(start = 6.dp, bottom = 4.dp))
         EntryRow("LOSSLESS SCALING DLL", if (dllFound) "FOUND" else "ADD Lossless.dll") { dllImporter.launch(arrayOf("*/*")) }
         if ((values[LauncherSettings.frameGen.key] ?: "Off") != "Off" && !dllFound)
@@ -246,6 +376,7 @@ internal fun LauncherPage(gameRunning: Boolean, onBackToGame: () -> Unit, onMods
 
         SectionHeader("DUAL SCREEN")
         Selector(LauncherSettings.companion, values, label = "IN-GAME COMPANION")
+        Selector(LauncherSettings.gameLightDim, values, label = "DIM WITH GAME LIGHT")
 
         SectionHeader("ACHIEVEMENTS")
         val achievements by Achievements.items.collectAsState()
@@ -296,6 +427,10 @@ internal fun LauncherPage(gameRunning: Boolean, onBackToGame: () -> Unit, onMods
         }
 
         SectionHeader("GAME")
+        Selector(LauncherSettings.language, values, label = "LANGUAGE")
+        EntryRow("REPORT A PROBLEM", "SAVE LOGS · OPEN GITHUB") {
+            scope.launch { notice = if (BugReport.share(context)) "Report saved to ${BugReport.lastSaved}. Attach it to the GitHub issue." else "Couldn't build the report" }
+        }
         var confirmFolder by remember { mutableStateOf(false) }
         LaunchedEffect(confirmFolder) { if (confirmFolder) { delay(3000); confirmFolder = false } }
         EntryRow("SKYRIM FOLDER", if (confirmFolder) "TAP AGAIN TO CHANGE" else gameDir?.substringAfterLast('/')) {

@@ -1,0 +1,188 @@
+{
+ "format": "skyrimse-dualscreen-modlist",
+ "version": 1,
+ "name": "Recommended for the Thor",
+ "mods": [
+  {
+   "name": "Unofficial Skyrim Special Edition Patch",
+   "version": "",
+   "nexusId": 266,
+   "fileId": 800977
+  },
+  {
+   "name": "Skyrim Project Optimization SE",
+   "version": "",
+   "nexusId": 14084,
+   "fileId": 263338
+  },
+  {
+   "name": "Grass FPS Booster",
+   "version": "",
+   "nexusId": 20082,
+   "fileId": 580085
+  },
+  {
+   "name": "eFPS - Exterior FPS Boost",
+   "version": "",
+   "nexusId": 54907,
+   "fileId": 311974
+  },
+  {
+   "name": "Insignificant Object Remover",
+   "version": "",
+   "nexusId": 3354,
+   "fileId": 229862
+  },
+  {
+   "name": "No More Radial Blur",
+   "version": "",
+   "nexusId": 1265,
+   "fileId": 2374
+  },
+  {
+   "name": "Vanilla Script MicroOptimizations",
+   "version": "",
+   "nexusId": 54061,
+   "fileId": 432771
+  },
+  {
+   "name": "Skyrim Script Extender (SKSE64)",
+   "version": "",
+   "nexusId": 30379,
+   "fileId": 795992
+  },
+  {
+   "name": "Address Library for SKSE Plugins",
+   "version": "",
+   "nexusId": 32444,
+   "fileId": 795954
+  },
+  {
+   "name": "Bug Fixes SSE",
+   "version": "",
+   "nexusId": 33261,
+   "fileId": 795428
+  },
+  {
+   "name": "Actor Limit Fix",
+   "version": "",
+   "nexusId": 32349,
+   "fileId": 795423
+  },
+  {
+   "name": "powerofthree's Tweaks",
+   "version": "",
+   "nexusId": 51073,
+   "fileId": 794717
+  },
+  {
+   "name": "Papyrus Tweaks NG",
+   "version": "",
+   "nexusId": 77779,
+   "fileId": 810308
+  },
+  {
+   "name": "SkyUI",
+   "version": "",
+   "nexusId": 12604,
+   "fileId": 749043
+  },
+  {
+   "name": "Ordinator - Perks of Skyrim",
+   "version": "",
+   "nexusId": 1137,
+   "fileId": 675234
+  },
+  {
+   "name": "Apocalypse - Magic of Skyrim",
+   "version": "",
+   "nexusId": 1090,
+   "fileId": 793875
+  },
+  {
+   "name": "Imperious - Races of Skyrim",
+   "version": "",
+   "nexusId": 1315,
+   "fileId": 228927
+  },
+  {
+   "name": "Wintersun - Faiths of Skyrim",
+   "version": "",
+   "nexusId": 22506,
+   "fileId": 809298
+  },
+  {
+   "name": "Alternate Start - Live Another Life",
+   "version": "",
+   "nexusId": 272,
+   "fileId": 729409
+  },
+  {
+   "name": "Cutting Room Floor",
+   "version": "",
+   "nexusId": 276,
+   "fileId": 796288
+  },
+  {
+   "name": "Relationship Dialogue Overhaul",
+   "version": "",
+   "nexusId": 1187,
+   "fileId": 1171
+  },
+  {
+   "name": "Immersive Weapons",
+   "version": "",
+   "nexusId": 16788,
+   "fileId": 52498
+  },
+  {
+   "name": "Immersive Armors",
+   "version": "",
+   "nexusId": 3479,
+   "fileId": 5924
+  },
+  {
+   "name": "Cloaks of Skyrim",
+   "version": "",
+   "nexusId": 6369,
+   "fileId": 18422
+  },
+  {
+   "name": "Immersive Sounds - Compendium",
+   "version": "",
+   "nexusId": 523,
+   "fileId": 221873
+  },
+  {
+   "name": "Run For Your Lives",
+   "version": "",
+   "nexusId": 2272,
+   "fileId": 818396
+  },
+  {
+   "name": "INIGO",
+   "version": "",
+   "nexusId": 1461,
+   "fileId": 10496
+  },
+  {
+   "name": "Unread Books Glow",
+   "version": "",
+   "nexusId": 1296,
+   "fileId": 2144
+  },
+  {
+   "name": "Immersive Citizens - AI Overhaul",
+   "version": "",
+   "nexusId": 173,
+   "fileId": 0
+  },
+  {
+   "name": "Enhanced Blood Textures",
+   "version": "",
+   "nexusId": 2357,
+   "fileId": 0
+  }
+ ],
+ "plugins": []
+}

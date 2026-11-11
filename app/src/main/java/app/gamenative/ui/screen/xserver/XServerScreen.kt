@@ -1637,7 +1637,7 @@ fun XServerScreen(
             }
         }, 100)
 
-        com.skyrimayn.SkyrimEngine.requestMenu() /* SkyrimSE-DualScreen: our settings replace the engine's quick menu */
+        com.skyrimayn.SkyrimEngine.onGameBack() /* SkyrimSE-DualScreen: settings on the bottom screen; twice quickly leaves the app */
     }
 
     DisposableEffect(Unit) {
@@ -5325,7 +5325,7 @@ private fun getWineStartCommand(
             val exePath = if (isRockstar) RockstarHelperDeployment.executable(File(appDirPath)) else container.executablePath.ifEmpty { SteamService.getInstalledExe(gameId) }
             realSteamRockstarDirectory = if (isRockstar) File(appDirPath) else null
             val normalizedExe = exePath.replace('/', '\\').trimStart('\\')
-            val executableDir = appDirPath + "/" + exePath.substringBeforeLast("/", "")
+            val executableDir = (com.skyrimayn.ModOverlay.activeDir() ?: appDirPath) + "/" + exePath.substringBeforeLast("/", "")
             guestProgramLauncherComponent.workingDir = File(executableDir)
             Timber.i("Bionic-Steam working directory is $executableDir")
             val gameFolderName = appDirPath.substringAfterLast('/').ifEmpty { gameId.toString() }
@@ -5557,7 +5557,10 @@ private fun exit(
     }
     frameRating?.writeSessionSummary()
 
-    if (MainActivity.wasLaunchedViaExternalIntent) {
+    // SkyrimSE-DualScreen: our launcher is in this app, so go back straight away. Waiting here kept the top
+    // screen black for 10-20 s while new saves uploaded to Steam Cloud; the upload carries on in the
+    // background, and the next launch waits for it (CloseSyncTracker).
+    if (false && MainActivity.wasLaunchedViaExternalIntent) {
         Timber.i("[IntentLaunch]: Waiting for exit handling before returning to external launcher")
         onExit(navigateBack)
     } else {

@@ -282,6 +282,8 @@ object Link {
 
         val flags = page.getInt(Layout.FLAGS)
         _showing.value = live && flags and Proto.SHOWING != 0
+        // Only from a live heartbeat: state.bin keeps the last session's flags until the next plugin starts.
+        if (live && flags and Proto.QUITTING != 0) SkyrimEngine.onGameQuitRequested()
         val v2 = (page.getShort(4).toInt() and 0xFFFF) >= 2
         // Rounded to what the companion shows (game minutes, whole seconds of effects): the game clock and
         // effect timers tick every frame, which would otherwise redraw the character page 30 times a second.
@@ -291,7 +293,7 @@ object Link {
         } else null
         if (v2 && flags and Proto.LISTS_VALID != 0) {
             val listSeq = page.getInt(Proto.LIST_SEQ_COPY)
-            if (listSeq != lastListSeq) readLists(f)?.let { _lists.value = it; lastListSeq = listSeq }
+            if (listSeq != lastListSeq) readLists(f)?.let { ItemAge.note(it.items); _lists.value = it; lastListSeq = listSeq }
         } else if (!live) {
             lastListSeq = -1
         }

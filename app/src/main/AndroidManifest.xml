@@ -9,6 +9,7 @@
         android:name="android.hardware.sensor.gyroscope"
         android:required="false" />
 
+    <uses-permission android:name="android.permission.REORDER_TASKS" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <!-- SkyrimSE-DualScreen: read the user's Skyrim folder and install mods into it. -->
     <uses-permission
@@ -204,11 +205,20 @@
         <activity
             android:name="com.skyrimayn.BottomScreenActivity"
             android:exported="false"
-            android:theme="@style/Theme.SkyrimAYN"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+            android:windowSoftInputMode="stateAlwaysVisible|adjustNothing"
             android:resizeableActivity="true"
             android:launchMode="singleInstance"
             android:taskAffinity="com.skyrimayn.bottom"
             android:excludeFromRecents="true"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|keyboard|navigation|density" />
+        <activity
+            android:name="com.skyrimayn.BottomPickerActivity"
+            android:exported="false"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+            android:taskAffinity="com.skyrimayn.bottom"
+            android:excludeFromRecents="true"
+            android:resizeableActivity="true"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|keyboard|navigation|density" />
         <activity
             android:name="com.skyrimayn.FocusTrampolineActivity"

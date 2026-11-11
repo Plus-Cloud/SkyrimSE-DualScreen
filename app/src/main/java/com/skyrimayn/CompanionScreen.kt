@@ -798,28 +798,73 @@ private fun ItemsTab(p: PlayerState, lists: GameLists, onNotice: (String) -> Uni
     var cat by remember { mutableStateOf("ALL") }
     var selected by remember { mutableStateOf<Int?>(null) }
     val filter = cats.firstOrNull { it.first == cat }?.second ?: { true }
-    val shown = lists.items.filter(filter).sortedBy { it.name.lowercase() }
+    val sort = LauncherSettings.values.collectAsState().value[LauncherSettings.itemSort.key] ?: LauncherSettings.itemSort.default
+    val byName = compareBy<InvItem> { it.name.lowercase() }
+    val shown = lists.items.filter(filter).sortedWith(when (sort) {
+        "Weight" -> compareByDescending<InvItem> { it.weight }.then(byName)
+        "Value" -> compareByDescending<InvItem> { it.value }.then(byName)
+        "Newest" -> compareByDescending<InvItem> { ItemAge.of(it.formId) }.then(byName)
+        else -> byName
+    })
     val sel = shown.firstOrNull { it.formId == selected }
 
     TwoColumnMenu(
         categories = cats.map { it.first }, current = cat, onCategory = { cat = it; selected = null },
+        header = { ItemSortBar(sort) },
         list = {
             items(shown, key = { it.formId }) { i ->
-                ItemRow(i, selected = i.formId == selected) {
+                ItemRow(i, selected = i.formId == selected, trailing = when (sort) {
+                    "Weight" -> if (i.weight % 1f == 0f) i.weight.toInt().toString() else "%.1f".format(i.weight)
+                    "Value" -> i.value.toString()
+                    else -> null
+                }) {
                     if (selected == i.formId) onNotice(activate(i)) else selected = i.formId
                 }
             }
         },
         detail = sel?.let { i ->
             {
-                if (oneHanded(i)) ItemDetail(i, null, onAction = {}, extra = { HandButtons(i.equippedLeft, i.equippedRight) { h ->
+                if (oneHanded(i)) ItemDetail(i, null, onAction = {}, extra = {
+                    DropButtons(i, onNotice)
+                    HandButtons(i.equippedLeft, i.equippedRight) { h ->
                     // Tapping the hand it's already in takes it off, like the game.
                     onNotice(if ((h == 2 && i.equippedLeft) || (h == 1 && i.equippedRight)) activate(i, 0) else activate(i, h)) } })
-                else ItemDetail(i, actionFor(i), onAction = { onNotice(activate(i)) })
+                else ItemDetail(i, actionFor(i), onAction = { onNotice(activate(i)) }, extra = { DropButtons(i, onNotice) })
             }
         },
         footer = { BottomInfo(p) },
     )
+}
+
+/** DROP and, for a stack, DROP ALL. Worn items and quest items can't be dropped, as in the game. */
+@Composable
+private fun DropButtons(i: InvItem, onNotice: (String) -> Unit) {
+    if (i.equipped || i.quest) return
+    @Composable fun button(label: String, count: Int) = SkyText(label, 13.sp, Sky.Body, 2.5.sp, modifier = Modifier
+        .padding(end = 8.dp)
+        .clickable {
+            SkyrimEngine.dropItem(i.formId, count)
+            onNotice(if (count > 1) "Dropped ${i.name} ($count)" else "Dropped ${i.name}")
+        }
+        .border(1.dp, Sky.Faint).padding(horizontal = 14.dp, vertical = 5.dp))
+    button("DROP", 1)
+    if (i.count > 1) button("DROP ALL", i.count)
+}
+
+/** The order of the item list, in the style of the game's menu headings: the current one is underlined. */
+@Composable
+private fun ItemSortBar(current: String) {
+    Row(Modifier.fillMaxWidth().padding(start = 4.dp, bottom = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+        LauncherSettings.itemSort.options.forEach { o ->
+            val on = o == current
+            Column(Modifier.clickable { LauncherSettings.set(LauncherSettings.itemSort, o) }.padding(end = 20.dp, top = 4.dp, bottom = 4.dp),
+                horizontalAlignment = Alignment.CenterHorizontally) {
+                SkyText(o.uppercase(), 12.sp, if (on) Sky.Text else Sky.Dim, 2.sp)
+                Spacer(Modifier.height(3.dp))
+                Box(Modifier.width(22.dp).height(1.dp).background(if (on) Sky.Text else Color.Transparent))
+            }
+        }
+    }
 }
 
 private fun actionFor(i: InvItem) = when {
@@ -889,6 +934,7 @@ private fun TwoColumnMenu(
     list: androidx.compose.foundation.lazy.LazyListScope.() -> Unit,
     detail: (@Composable () -> Unit)?,
     footer: @Composable () -> Unit,
+    header: (@Composable () -> Unit)? = null,
 ) {
     Column(Modifier.fillMaxSize().padding(horizontal = 14.dp)) {
         Row(Modifier.weight(1f).fillMaxWidth().padding(top = 6.dp)) {
@@ -902,6 +948,7 @@ private fun TwoColumnMenu(
             }
             Box(Modifier.width(1.dp).fillMaxHeight().background(Sky.Faint))
             Column(Modifier.weight(1f).fillMaxHeight()) {
+                header?.let { Box(Modifier.padding(start = 10.dp)) { it() }; Rule(Modifier.padding(start = 10.dp), color = Sky.Faint) }
                 LazyColumn(Modifier.weight(1f).fillMaxWidth().padding(start = 10.dp), content = list)
                 detail?.let { Rule(color = Sky.Faint); it() }
             }
@@ -912,12 +959,13 @@ private fun TwoColumnMenu(
 
 /** An inventory row: equipped diamond, the item's glyph, its name, like the game's list (with a type icon). */
 @Composable
-private fun ItemRow(i: InvItem, selected: Boolean, onTap: () -> Unit) {
+private fun ItemRow(i: InvItem, selected: Boolean, trailing: String? = null, onTap: () -> Unit) {
     Row(Modifier.fillMaxWidth().clickable(onClick = onTap).padding(vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.width(14.dp), contentAlignment = Alignment.Center) { if (i.equipped) DiamondMark(true, modifier = Modifier.size(7.dp)) }
         ItemGlyph(i, Modifier.size(18.dp), if (selected || i.equipped) Sky.Text else Sky.Dim)
         Spacer(Modifier.width(8.dp))
-        SkyText(if (selected) "[ ${nameWithCount(i)} ]" else nameWithCount(i), 17.sp, if (selected || i.equipped) Sky.Text else Sky.Body, 0.5.sp)
+        SkyText(if (selected) "[ ${nameWithCount(i)} ]" else nameWithCount(i), 17.sp, if (selected || i.equipped) Sky.Text else Sky.Body, 0.5.sp, modifier = Modifier.weight(1f))
+        trailing?.let { SkyText(it, 14.sp, Sky.Dim, 0.5.sp, modifier = Modifier.padding(start = 8.dp, end = 6.dp)) }
     }
 }
 
@@ -1109,6 +1157,7 @@ private fun InGameSettings(onClose: () -> Unit, onNotice: (String) -> Unit) {
                 SelectorRow("PAUSE IN MENUS", LauncherSettings.pauseMenus.options, values[LauncherSettings.pauseMenus.key] ?: LauncherSettings.pauseMenus.default, { it.uppercase() }) { pick(LauncherSettings.pauseMenus, it) }
                 SelectorRow("MENU SOUNDS", LauncherSettings.menuSounds.options, values[LauncherSettings.menuSounds.key] ?: "On", { it.uppercase() }) { pick(LauncherSettings.menuSounds, it) }
                 SelectorRow("HAPTICS", LauncherSettings.haptics.options, values[LauncherSettings.haptics.key] ?: "On", { it.uppercase() }) { pick(LauncherSettings.haptics, it) }
+                SelectorRow("DIM WITH GAME LIGHT", LauncherSettings.gameLightDim.options, values[LauncherSettings.gameLightDim.key] ?: "On", { it.uppercase() }) { pick(LauncherSettings.gameLightDim, it) }
                 SectionHeader("ACHIEVEMENTS")
                 EntryRow("STEAM ACHIEVEMENTS", Achievements.summary(achievements) ?: "VIEW") { showAchievements = true }
                 SelectorRow("UNLOCK POPUP", LauncherSettings.achievementPopup.options, values[LauncherSettings.achievementPopup.key] ?: "On", { it.uppercase() }) { pick(LauncherSettings.achievementPopup, it) }
@@ -1126,7 +1175,7 @@ private fun InGameSettings(onClose: () -> Unit, onNotice: (String) -> Unit) {
                 }
                 // Proof your installs worked: what the game itself loaded. (Skyrim's own menu only lists Creations.)
                 val loaded = player?.loadedMods.orEmpty()
-                SectionHeader("MODS LOADED BY THE GAME (${loaded.size})")
+                SectionHeader("PLUGINS LOADED BY THE GAME (${loaded.size})")
                 if (loaded.isEmpty()) SkyText("None. Install mods from the launcher's Mod Manager.", 13.sp, Sky.Faint, 0.5.sp, light = true,
                     modifier = Modifier.padding(start = 6.dp, top = 4.dp))
                 loaded.forEach { SkyText(it, 14.sp, Sky.Body, 0.3.sp, modifier = Modifier.padding(start = 6.dp, top = 3.dp)) }

@@ -17,6 +17,8 @@ object LauncherSettings {
     val quality = Choice("quality", "Graphics", listOf("Thor", "Low", "Medium", "High"), "Thor")
     /** Any whole number from [FPS_MIN] to [FPS_MAX] (a slider); Power picks 30 / 40 / 60. */
     val fpsCap = Choice("fps", "FPS cap", listOf("30", "40", "60"), "60")
+    /** On: the FPS limit is the player's own number from the slider (the ‹ › control's last step). */
+    val fpsCustom = Choice("fps_custom", "Custom FPS", listOf("Off", "On"), "Off")
     const val FPS_MIN = 20
     const val FPS_MAX = 120   // plus Unlimited (stored as "0")
     /** True when [fps] divides the screen's refresh rate evenly, so every frame is shown for the same time. */
@@ -43,7 +45,16 @@ object LauncherSettings {
     /** Off, FPS (just the frame rate) or Full (FPS, load, temperatures, power). "On" from older versions means Full. */
     val perfHud = Choice("perf_hud", "Performance stats", listOf("Off", "FPS", "Full"), "Off")
     /** Lossless Scaling frame generation (needs the player's own Lossless.dll). */
-    val frameGen = Choice("frame_gen", "Frame generation", listOf("Off", "2X", "3X"), "Off")
+    val frameGen = Choice("frame_gen", "Frame generation", listOf("Off", "2X", "3X", "60 FPS", "90 FPS", "120 FPS"), "Off")
+    /** The whole-number multiplier the engine runs for a frame-generation choice. */
+    fun frameGenMultiplier(v: String) = when (v) { "60 FPS", "120 FPS" -> "2"; "90 FPS" -> "3"; else -> v.removeSuffix("X") }
+    /** A target picks the real frame rate that reaches it; null for the plain multipliers. */
+    fun frameGenBaseFps(v: String) = when (v) { "60 FPS", "90 FPS" -> "30"; "120 FPS" -> "60"; else -> null }
+    val gyroAim = Choice("gyro_aim", "Gyro aim", listOf("Off", "On"), "Off")
+    val gyroSensitivity = Choice("gyro_sensitivity", "Gyro sensitivity", listOf("Low", "Medium", "High", "Very High"), "Medium")
+    fun gyroSensitivityValue() = when (get(gyroSensitivity)) { "Low" -> 0.6f; "High" -> 1.8f; "Very High" -> 2.8f; else -> 1.1f }
+    /** The companion darkens with the light around the player, so a cave isn't lit by a bright bottom screen. */
+    val gameLightDim = Choice("game_light_dim", "Dim with game light", listOf("Off", "On"), "On")
     /** Bottom-screen menus pause the game, like the game's own menus. Off by default: play while you browse. */
     val pauseMenus = Choice("pause_menus", "Pause in menus", listOf("On", "Off"), "Off")
     val menuSounds = Choice("menu_sounds", "Menu sounds", listOf("On", "Off"), "On")
@@ -53,8 +64,15 @@ object LauncherSettings {
     val achievementPopup = Choice("achievement_popup", "Unlock popup", listOf("On", "Off"), "On")
     val achievementSound = Choice("achievement_sound", "Unlock sound", listOf("On", "Off"), "On")
 
-    val all = listOf(resolution, quality, fpsCap, power, translator, companion, heatGuard, hudCompass, hudBars, hudEnemy, haptics, perfHud, frameGen,
-        pauseMenus, menuSounds, mods, achievementPopup, achievementSound)
+    /** Show mods Nexus tags as adult when browsing (some mainstream mods depend on them). Hidden unless the player opts in. */
+    val adultMods = Choice("adult_mods", "Adult-tagged mods", listOf("Hidden", "Shown"), "Hidden")
+    /** How the companion's item list is ordered. */
+    val itemSort = Choice("item_sort", "Sort items", listOf("Name", "Weight", "Value", "Newest"), "Name")
+
+    val language = Choice("language", "Language", I18n.languages.map { it.first }, "English")
+
+    val all = listOf(language, resolution, quality, fpsCap, fpsCustom, power, translator, companion, heatGuard, hudCompass, hudBars, hudEnemy, haptics, perfHud, frameGen,
+        pauseMenus, menuSounds, mods, achievementPopup, achievementSound, adultMods, itemSort, gyroAim, gyroSensitivity, gameLightDim)
 
     /** Which parts of the game's HUD to hide, as the plugin's mask (1 compass, 2 bars, 4 enemy health). */
     fun hudMask(): Int = (if (get(hudCompass) == "Hidden") 1 else 0) or (if (get(hudBars) == "Hidden") 2 else 0)
@@ -74,6 +92,7 @@ object LauncherSettings {
         // 1.0.2: Balanced is 40 FPS (45 judders on the 120 Hz screen); move Balanced players over.
         if (get(power) == "Balanced" && get(fpsCap) == "45") set(fpsCap, "40")
         applyAchievementPrefs()
+        I18n.apply(ctx!!, get(language))
     }
 
     /** The engine shows the unlock popup and plays the sound; it reads these two from its own prefs. */
@@ -106,5 +125,9 @@ object LauncherSettings {
         _values.value = _values.value + (c.key to v)
         ctx?.getSharedPreferences("launcher", 0)?.edit()?.putString(c.key, v)?.apply()
         if (c === achievementPopup || c === achievementSound) applyAchievementPrefs()
+        if (c === language) ctx?.let { I18n.apply(it, v) }
+        if (c === power) set(fpsCustom, "Off")
+        // Moving the FPS limit away from what a frame-gen target needs leaves its multiplier in place.
+        if (c === fpsCap) get(frameGen).let { fg -> if (frameGenBaseFps(fg)?.let { it != v } == true) set(frameGen, frameGenMultiplier(fg) + "X") }
     }
 }

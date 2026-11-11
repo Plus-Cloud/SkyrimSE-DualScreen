@@ -120,6 +120,10 @@ private class BrowseState {
     var query by mutableStateOf("")
     var applied by mutableStateOf("")
     var sort by mutableStateOf(NexusApi.Sort.POPULAR)
+    /** Only this creator's mods, when set. */
+    var author by mutableStateOf<String?>(null)
+    /** The adult-mods setting the current results were loaded with. */
+    var loadedAdult: Boolean? = null
     val mods = mutableStateListOf<NexusApi.Mod>()
     var total by mutableStateOf(0)
     var loading by mutableStateOf(false)
@@ -167,7 +171,8 @@ private fun NexusRoot(onClose: () -> Unit, registerBack: ((() -> Unit)?) -> Unit
                 when {
                     account == null && !browseFirst -> SignInPage(onSkip = { browseFirst = true })
                     openMod != null -> ModPage(openMod!!, onOpen = { id -> openMod?.let(history::add); openMod = id }, onBack = ::back,
-                        onNeedSignIn = { browseFirst = false })
+                        onNeedSignIn = { browseFirst = false },
+                        onAuthor = { name -> browse.author = name; browse.mods.clear(); history.clear(); openMod = null })
                     else -> BrowsePage(browse, onOpen = { openMod = it })
                 }
             }
@@ -345,6 +350,7 @@ private fun SignInPage(onSkip: () -> Unit) {
 private fun BrowsePage(s: BrowseState, onOpen: (Int) -> Unit) {
     val scope = rememberCoroutineScope()
     val installed = ModManager.mods.collectAsState().value.map { it.nexusId }.toSet() + skseIfInstalled()
+    val adult = LauncherSettings.values.collectAsState().value[LauncherSettings.adultMods.key] == "Shown"
     fun load(reset: Boolean) {
         if (s.loading && !reset) return
         val gen = if (reset) ++s.generation else s.generation
@@ -352,7 +358,7 @@ private fun BrowsePage(s: BrowseState, onOpen: (Int) -> Unit) {
         s.loading = true; s.error = null
         scope.launch {
             try {
-                val (page, total) = NexusApi.browse(s.applied, s.sort, s.mods.size)
+                val (page, total) = NexusApi.browse(s.applied, s.sort, s.mods.size, author = s.author, adult = adult)
                 if (gen == s.generation) { s.mods.addAll(page.filter { m -> s.mods.none { it.modId == m.modId } }); s.total = total }
             } catch (e: Exception) {
                 if (gen == s.generation) s.error = e.message ?: "Couldn't reach Nexus Mods"
@@ -361,7 +367,8 @@ private fun BrowsePage(s: BrowseState, onOpen: (Int) -> Unit) {
             }
         }
     }
-    LaunchedEffect(Unit) { if (s.mods.isEmpty()) load(true) }
+    // First open, returning from a creator link, or the adult setting changed.
+    LaunchedEffect(adult, s.author) { if (s.mods.isEmpty() || s.loadedAdult != adult) { s.loadedAdult = adult; load(true) } }
     val grid = rememberLazyGridState()
     val nearEnd by remember { derivedStateOf { (grid.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0) >= s.mods.size - 6 } }
     LaunchedEffect(nearEnd, s.mods.size) { if (nearEnd && s.mods.isNotEmpty() && s.mods.size < s.total && !s.loading) load(false) }
@@ -379,13 +386,18 @@ private fun BrowsePage(s: BrowseState, onOpen: (Int) -> Unit) {
         Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.width(300.dp).border(1.dp, Sky.Frame).padding(horizontal = 12.dp, vertical = 8.dp)) {
                 if (s.query.isEmpty()) SkyText("Search mods…", 15.sp, Sky.Faint, 0.5.sp, light = true)
+                // Dual-screen: the keyboard opens on the bottom screen and fills this box as you type.
+                val typing = rememberBottomTyping("Search mods", { s.query },
+                    action = android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH,
+                    onChange = { s.query = it }, onDone = { s.query = s.query.trim(); s.applied = s.query; load(true) })
                 BasicTextField(
-                    s.query, { s.query = it }, singleLine = true,
+                    s.query, { s.query = it }, singleLine = true, readOnly = typing.readOnly,
+                    interactionSource = typing.interaction,
                     textStyle = TextStyle(color = Sky.Text, fontSize = 15.sp, fontFamily = Sky.Font),
                     cursorBrush = SolidColor(Sky.Text),
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                     keyboardActions = KeyboardActions(onSearch = { s.applied = s.query; load(true) }),
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().then(typing.modifier),
                 )
             }
             SkyText(if (s.applied.isNotEmpty() && s.query == s.applied) "CLEAR" else "SEARCH", 13.sp, Sky.Text, 2.sp, modifier = Modifier.clickable {
@@ -398,6 +410,12 @@ private fun BrowsePage(s: BrowseState, onOpen: (Int) -> Unit) {
                 SkyText(o.label, if (sel) 13.sp else 12.sp, if (sel) Sky.Text else Sky.Dim, 2.sp,
                     modifier = Modifier.clickable { s.sort = o; load(true) }.padding(horizontal = 9.dp, vertical = 8.dp))
             } else SkyText("${s.total} RESULTS FOR \"${s.applied.uppercase()}\"", 12.sp, Sky.Dim, 2.sp)
+        }
+        s.author?.let { name ->
+            Row(Modifier.fillMaxWidth().padding(bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                SkyText("MODS BY ${name.uppercase()}  ·  ${s.total}", 13.sp, Sky.Text, 2.sp)
+                SkyText("SHOW ALL", 13.sp, Sky.Dim, 2.sp, modifier = Modifier.clickable { s.author = null; s.mods.clear() }.padding(horizontal = 14.dp, vertical = 4.dp))
+            }
         }
         Box(Modifier.weight(1f).fillMaxWidth()) {
             LazyVerticalGrid(
@@ -468,7 +486,7 @@ private fun compact(n: Int): String = when {
 // ================================================================ mod page
 
 @Composable
-private fun ModPage(modId: Int, onOpen: (Int) -> Unit, onBack: () -> Unit, onNeedSignIn: () -> Unit) {
+private fun ModPage(modId: Int, onOpen: (Int) -> Unit, onBack: () -> Unit, onNeedSignIn: () -> Unit, onAuthor: (String) -> Unit) {
     var mod by remember(modId) { mutableStateOf<NexusApi.Mod?>(null) }
     var description by remember(modId) { mutableStateOf("") }
     var files by remember(modId) { mutableStateOf<List<NexusApi.ModFile>?>(null) }
@@ -497,6 +515,7 @@ private fun ModPage(modId: Int, onOpen: (Int) -> Unit, onBack: () -> Unit, onNee
             }
             Spacer(Modifier.height(8.dp))
             SkyText(m.name.uppercase(), 22.sp, Sky.Text, 2.sp, maxLines = 2)
+            SkyText("MORE BY ${NexusApi.mainAuthor(m.author).uppercase()}  ›", 11.sp, Sky.Text, 2.sp, modifier = Modifier.clickable { onAuthor(NexusApi.mainAuthor(m.author)) }.padding(vertical = 5.dp))
             SkyText("BY ${m.author.uppercase()}   ·   VERSION ${m.version}   ·   ${m.category.uppercase()}", 10.sp, Sky.Dim, 2.sp, maxLines = 2)
             SkyText("${compact(m.endorsements)} ENDORSEMENTS   ·   ${compact(m.downloads)} DOWNLOADS", 10.sp, Sky.Dim, 2.sp)
             Rule(Modifier.padding(vertical = 8.dp), color = Sky.Faint)
@@ -604,7 +623,8 @@ private fun FreeConfirmPanel(c: ModManager.FreeConfirm) {
                 SkyText("CANCEL", 13.sp, Sky.Text, 3.sp, modifier = Modifier.clickable { ModManager.cancelFreeConfirm() }.padding(8.dp))
             }
             Spacer(Modifier.height(8.dp))
-            AndroidView(
+            // A new page for each file: without the key, the next queued file kept showing the previous file's page.
+            androidx.compose.runtime.key(c.mod.modId, c.file.fileId) { AndroidView(
                 factory = { ctx ->
                     WebView(ctx).apply {
                         settings.javaScriptEnabled = true
@@ -627,7 +647,7 @@ private fun FreeConfirmPanel(c: ModManager.FreeConfirm) {
                 },
                 onRelease = { it.destroy() },
                 modifier = Modifier.fillMaxSize(),
-            )
+            ) }
         }
     }
 }
@@ -636,27 +656,28 @@ private fun FreeConfirmPanel(c: ModManager.FreeConfirm) {
 
 /** What's downloading / installing, so the player sees their tap did something. */
 @Composable
-private fun DownloadStrip() {
+internal fun DownloadStrip(everything: Boolean = true) {
     val downloads by ModManager.downloads.collectAsState()
     val busy by ModManager.busy.collectAsState()
     val notice by ModManager.notice.collectAsState()
     val fomod by ModManager.fomod.collectAsState()
     val queued by ModManager.queued.collectAsState()
-    LaunchedEffect(notice) { if (notice != null) { delay(3500); ModManager.clearNotice() } }
+    if (everything) LaunchedEffect(notice) { if (notice != null) { delay(3500); ModManager.clearNotice() } }
     val active = downloads.firstOrNull { it.state == ModManager.DlState.DOWNLOADING }
     val line = when {
-        fomod != null -> "${fomod!!.modName.uppercase()}  ·  choose options on the bottom screen"
-        busy != null -> "${busy!!.title}  ·  ${busy!!.detail}"
+        everything && fomod != null -> "${fomod!!.modName.uppercase()}  ·  choose options on the bottom screen"
+        everything && busy != null -> "${busy!!.title}  ·  ${busy!!.detail}"
         active != null -> "DOWNLOADING  ·  ${active.name}" + (if (active.total > 0) "  ·  ${(active.progress * 100).toInt()}%" else "") +
             (if (queued > 0) "  ·  $queued MORE QUEUED" else "")
-        notice != null -> notice!!
+        everything && notice != null -> notice!!
         else -> return
     }
     Column(Modifier.fillMaxWidth().background(Color.Black).padding(horizontal = 18.dp, vertical = 6.dp)) {
         Rule(color = Sky.Faint)
         SkyText(line, 14.sp, Sky.Text, 1.sp, modifier = Modifier.padding(top = 4.dp))
-        val p = busy?.progress ?: active?.progress ?: -1f
-        if (busy != null || active != null) {
+        val shownBusy = busy.takeIf { everything }
+        val p = shownBusy?.progress ?: active?.progress ?: -1f
+        if (shownBusy != null || active != null) {
             val mod = Modifier.fillMaxWidth().padding(top = 4.dp).height(3.dp)
             if (p >= 0f) LinearProgressIndicator(progress = { p }, color = Sky.Text, trackColor = Sky.Faint, modifier = mod)
             else LinearProgressIndicator(color = Sky.Text, trackColor = Sky.Faint, modifier = mod)
@@ -666,4 +687,4 @@ private fun DownloadStrip() {
 
 /** The Script Extender's id when its files are in the game folder, so pages show it as installed. */
 private fun skseIfInstalled(): Set<Int> =
-    if (GameFolder.dir.value?.let { SkyrimEngine.skseInstalled(it) } == true) setOf(ModManager.SKSE_NEXUS_ID) else emptySet()
+    if (GameFolder.modded()?.let { SkyrimEngine.skseInstalled(it) } == true) setOf(ModManager.SKSE_NEXUS_ID) else emptySet()

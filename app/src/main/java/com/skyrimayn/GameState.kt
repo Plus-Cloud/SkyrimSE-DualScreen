@@ -27,6 +27,8 @@ data class PlayerState(
     val effects: List<ActiveEffect> = emptyList(),
     /** User mods the game actually loaded (not base game, DLC or Creation Club). */
     val loadedMods: List<String> = emptyList(),
+    /** How lit the player is, on the game's stealth scale (dark caves are low, daylight is high). Plugin 0.21. */
+    val lightLevel: Float = 0f,
 )
 
 /** [secondsLeft] < 0 means it doesn't wear off. [harmful]: hostile, detrimental or a disease. */
@@ -49,6 +51,23 @@ enum class ItemCategory(val label: String) {
     companion object { fun of(i: Int) = entries.getOrElse(i) { OTHER } }
 }
 
+/**
+ * Remembers when items entered the inventory, for the "Newest" sort: the game doesn't record it. What the
+ * player carries when the companion first connects counts as old; anything picked up after that is newer.
+ */
+object ItemAge {
+    private val seen = HashMap<Int, Long>()
+    private var clock = 0L
+
+    @Synchronized fun note(items: List<InvItem>) {
+        val baseline = seen.isEmpty()
+        clock++
+        items.forEach { seen.getOrPut(it.formId) { if (baseline) 0L else clock } }
+    }
+
+    @Synchronized fun of(formId: Int): Long = seen[formId] ?: 0L
+}
+
 data class InvItem(
     val formId: Int, val count: Int, val category: ItemCategory,
     val equippedRight: Boolean, val equippedLeft: Boolean, val favorite: Boolean, val stolen: Boolean,
@@ -59,6 +78,8 @@ data class InvItem(
     val stat: Float = 0f,
     /** First effect (potions, poisons, scrolls, ingredients, enchantments). */
     val effect: String = "", val magnitude: Float = 0f, val duration: Int = 0,
+    /** A quest is holding this item: the game won't let it be dropped. */
+    val quest: Boolean = false,
 ) {
     val equipped get() = equippedRight || equippedLeft
     val consumable get() = category == ItemCategory.POTION || category == ItemCategory.FOOD || category == ItemCategory.INGREDIENT
@@ -115,6 +136,9 @@ object Proto {
     const val IN_GAME = 1 shl 4
     /** Plugin 0.18: Skyrim is drawing something (main menu, loading screen or the world), not its black start-up. */
     const val SHOWING = 1 shl 7
+    /** Plugin 0.21: the player chose Quit in the game's own menu. */
+    const val QUITTING = 1 shl 8
+    const val CMD_DROP_ITEM = 10
     const val LIST_SEQ_COPY = 52
     const val LISTS = 8192
     const val ITEMS = 8256; const val ITEM_SIZE = 120; const val MAX_ITEMS = 800
@@ -155,6 +179,7 @@ object Proto {
         List(18) { b.getFloat(500 + it * 8) }, List(18) { b.getFloat(504 + it * 8).coerceIn(0f, 1f) },
         List((b.get(700).toInt() and 0xFF).coerceAtMost(12)) { i -> val o = 704 + i * 48; ActiveEffect(str(b, o, 40), b.getFloat(o + 40), b.get(o + 44).toInt() != 0) },
         List((b.getShort(1284).toInt() and 0xFFFF).coerceAtMost(36)) { i -> str(b, 1288 + i * 48, 48) },
+        b.getFloat(3040),
     )
 
     /** Parses the lists region; [b] is the whole file. Returns null if it's mid-write. */
@@ -171,7 +196,7 @@ object Proto {
                 flags and 1 != 0, flags and 2 != 0, flags and 4 != 0, flags and 8 != 0,
                 b.getFloat(o + 12), b.getInt(o + 16), str(b, o + 20, 52),
                 (b.get(o + 10).toInt() and 0xFF).let { if (it == 0xFF) -1 else it }, b.getFloat(o + 72),
-                str(b, o + 84, 36), b.getFloat(o + 76), b.getInt(o + 80),
+                str(b, o + 84, 36), b.getFloat(o + 76), b.getInt(o + 80), flags and 16 != 0,
             )
         }
         val spells = (0 until nSpells).map { i ->

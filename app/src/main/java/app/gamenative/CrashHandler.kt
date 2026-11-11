@@ -89,7 +89,21 @@ class CrashHandler(
         }
     }
 
+    /**
+     * SkyrimSE-DualScreen: JavaSteam's disconnect callback can run after its connection is already gone (closing
+     * the game while Steam reconnects) and throws on a null connection. Nothing is left to clean up at that point,
+     * but on a background thread it took the whole app down ("Save and Quit closed the app"). Ignored.
+     */
+    private fun isHarmlessSteamDisconnect(t: Throwable): Boolean =
+        t is NullPointerException && t.stackTrace.take(4).any {
+            it.className.startsWith("in.dragonbra.javasteam.steam.CMClient") && it.methodName == "handleEvent"
+        } && t.stackTrace.any { it.className.startsWith("in.dragonbra.javasteam.networking.steam3.Connection") && it.methodName == "onDisconnected" }
+
     override fun uncaughtException(thread: Thread, throwable: Throwable) {
+        if (isHarmlessSteamDisconnect(throwable)) {
+            timber.log.Timber.w(throwable, "SkyrimAYN: ignored a JavaSteam disconnect after its connection closed")
+            return
+        }
         PrefManager.recentlyCrashed = true
 
         saveCrashToFile(throwable)
