@@ -230,6 +230,12 @@ private fun EquipCell(label: String, value: String, modifier: Modifier, warn: Bo
     }
 }
 
+/** A panel shown over the whole companion (tap outside to close). The companion can't open Dialog windows. */
+internal object CompanionOverlay {
+    class Panel(val onDismiss: () -> Unit, val content: @Composable () -> Unit)
+    val current = mutableStateOf<Panel?>(null)
+}
+
 /**
  * Active effects in one line, harmful ones in red, like the Active Effects menu. As many as fit are shown,
  * then "+N MORE"; tapping the line lists them all, so a long list never runs off the edge.
@@ -246,18 +252,29 @@ private fun EffectsLine(p: PlayerState) {
         SkyText("   CARRY ", 8.sp, Sky.Dim, 1.5.sp)
         SkyText("${p.carryWeight.roundToInt()}/${p.carryMax.roundToInt()}", 12.sp, if (p.carryMax > 0 && p.carryWeight > p.carryMax) Sky.Health else Sky.Text, 0.3.sp)
     }
-    if (open) androidx.compose.ui.window.Dialog(onDismissRequest = { open = false }) {
+    // Shown over the whole companion, not as a Dialog: the companion lives in a Presentation, which has no
+    // activity for a Dialog window to attach to, so a Dialog here closed the app (#12).
+    if (open) {
+        val effects = p.effects
+        androidx.compose.runtime.DisposableEffect(Unit) { onDispose { CompanionOverlay.current.value = null } }
+        androidx.compose.runtime.SideEffect { CompanionOverlay.current.value = CompanionOverlay.Panel({ open = false }) { EffectsPanel(effects) { open = false } } }
+    }
+}
+
+@Composable
+private fun EffectsPanel(effects: List<ActiveEffect>, close: () -> Unit) {
+    run {
         Column(Modifier.widthIn(max = 520.dp).background(Color(0xF2000000)).border(1.dp, Sky.Frame)
-            .clickable { open = false }.padding(20.dp)) {
+            .clickable { close() }.padding(20.dp)) {
             SkyText("ACTIVE EFFECTS", 14.sp, Sky.Text, 3.sp)
             Rule(Modifier.padding(vertical = 8.dp), color = Sky.Faint)
             Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState())) {
-                for (e in p.effects) Row(Modifier.fillMaxWidth().padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
+                for (e in effects) Row(Modifier.fillMaxWidth().padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
                     SkyText(e.name, 14.sp, if (e.harmful) Color(0xFFD9675E) else Sky.Body, 0.3.sp, modifier = Modifier.weight(1f), maxLines = 2)
                     SkyText(if (e.secondsLeft > 0) timeLeft(e.secondsLeft) else "", 12.sp, Sky.Dim, 0.5.sp, modifier = Modifier.padding(start = 12.dp))
                 }
             }
-            if (p.effects.isEmpty()) SkyText("None", 13.sp, Sky.Faint, 0.3.sp)
+            if (effects.isEmpty()) SkyText("None", 13.sp, Sky.Faint, 0.3.sp)
         }
     }
 }

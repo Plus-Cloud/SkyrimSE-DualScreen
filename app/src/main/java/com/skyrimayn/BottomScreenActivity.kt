@@ -199,6 +199,11 @@ internal fun BottomRoot() {
             )
         }
         if (gameRunning && companionOn && !forceLauncher && values[LauncherSettings.gameLightDim.key] != "Off") GameLightDim()
+        CompanionOverlay.current.value?.let { panel ->
+            Box(Modifier.fillMaxSize().background(Color(0x99000000))
+                .clickable(interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, indication = null) { panel.onDismiss() },
+                contentAlignment = Alignment.Center) { panel.content() }
+        }
     }
 }
 

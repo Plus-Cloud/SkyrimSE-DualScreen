@@ -121,8 +121,9 @@ object ModManager {
      * their saved archives, so nothing needs downloading. Mods with an installer (FOMOD) ask their options again.
      */
     private fun restoreMissing(game: File) {
+        val paths = ModOverlay.Paths(game)
         val gone = _mods.value.filter { m ->
-            m.files.isNotEmpty() && m.files.none { rel -> target(game, rel).let { it.isFile && !java.nio.file.Files.isSymbolicLink(it.toPath()) } }
+            m.files.isNotEmpty() && m.files.none { rel -> target(paths, rel).let { it.isFile && !java.nio.file.Files.isSymbolicLink(it.toPath()) } }
         }
         if (gone.isEmpty()) return
         gone.forEach { m -> m.files.forEach { rel -> owners[rel.lowercase()]?.let { st -> st.remove(m.id); if (st.isEmpty() || st == listOf("_base")) owners.remove(rel.lowercase()) } } }
@@ -430,7 +431,8 @@ object ModManager {
     /** Files a mod must never replace in the game folder: the game, SKSE, and our dinput8.dll (it loads the companion). */
     private val protectedRoot = Regex("^(skyrimse\\.exe|skyrimselauncher\\.exe|skse64_.*|dinput8\\.dll)$", RegexOption.IGNORE_CASE)
 
-    private fun target(game: File, rel: String) = if (rel.startsWith(ROOT)) File(game, rel.removePrefix(ROOT)) else File(dataDir(game), rel)
+    /** Where [rel] goes, spelled like the folders and files already there (see ModOverlay.Paths). */
+    private fun target(paths: ModOverlay.Paths, rel: String) = paths[if (rel.startsWith(ROOT)) rel.removePrefix(ROOT) else "Data/$rel"]
     /** Backup path for [rel] (no angle brackets: shared storage doesn't allow them). */
     private fun backupRel(rel: String) = if (rel.startsWith(ROOT)) "_root_/" + rel.removePrefix(ROOT) else rel
 
@@ -506,16 +508,18 @@ object ModManager {
         SaveGames.backup(appContext, game)
         val data = dataDir(game)
         val backup = ModOverlay.backupDir(appContext.filesDir)
+        val paths = ModOverlay.Paths(game)
+        val backups = ModOverlay.Paths(backup)
         var size = 0L
         var done = 0
         val placed = ArrayList<String>()
         for ((rel, src) in files) {
             val key = rel.lowercase()
-            val dst = target(game, rel)
+            val dst = target(paths, rel)
             ModOverlay.materialize(game, dst)   // never write through a link into the player's folder
             val stack = owners.getOrPut(key) { if (dst.exists()) mutableListOf("_base") else mutableListOf() }
             if (dst.exists() && stack.isNotEmpty()) {
-                val bak = File(backup, "${stack.last()}/${backupRel(rel)}")
+                val bak = backups["${stack.last()}/${backupRel(rel)}"]
                 bak.parentFile?.mkdirs()
                 bak.delete()
                 moveFile(dst, bak)
@@ -557,6 +561,8 @@ object ModManager {
                 readIndex(game)
                 val data = dataDir(game)
                 val backup = ModOverlay.backupDir(appContext.filesDir)
+                val paths = ModOverlay.Paths(game)
+                val backups = ModOverlay.Paths(backup)
                 _busy.value = Busy("REMOVING", mod.name)
                 SaveGames.backup(appContext, game)
                 try {
@@ -566,16 +572,16 @@ object ModManager {
                         val stack = owners[key] ?: continue
                         val at = stack.lastIndexOf(mod.id)
                         if (at < 0) continue
-                        val dst = target(game, rel)
+                        val dst = target(paths, rel)
                         if (at == stack.lastIndex) {
                             dst.delete()
                             stack.removeAt(at)
                             if (stack.isNotEmpty()) {
-                                val bak = File(backup, "${stack.last()}/${backupRel(rel)}")
+                                val bak = backups["${stack.last()}/${backupRel(rel)}"]
                                 if (bak.exists()) moveFile(bak, dst)
                             }
                         } else {
-                            File(backup, "${mod.id}/${backupRel(rel)}").delete()
+                            backups["${mod.id}/${backupRel(rel)}"].delete()
                             stack.removeAt(at)
                         }
                         if (stack.isEmpty() || stack == listOf("_base")) owners.remove(key)

@@ -38,7 +38,37 @@ object ModOverlay {
     fun stagingDir(filesDir: File) = File(filesDir, "modstaging")
     private fun migratedMarker(filesDir: File, game: File) = File(filesDir, "modlink/.moved-${game.name}")
 
+    private fun caseFixedMarker(filesDir: File, game: File) = File(filesDir, "modlink/.casefixed-${game.name}")
+
     private fun isLink(f: File) = Files.isSymbolicLink(f.toPath())
+
+    /**
+     * Paths below [base], spelled like whatever already exists there. The app's storage is case-sensitive, but
+     * Skyrim and the player's folder aren't: "Meshes/Actors" from one mod and "meshes/actors" from another must
+     * land in one folder, or Skyrim only ever sees one of them (#11). One instance per operation: it remembers
+     * folder listings, so installing thousands of files stays fast.
+     */
+    class Paths(private val base: File) {
+        private val names = HashMap<String, HashMap<String, String>>()
+        operator fun get(rel: String): File {
+            var cur = base
+            for (seg in rel.split('/')) {
+                if (seg.isEmpty()) continue
+                val dir = cur
+                val known = names.getOrPut(dir.path) { HashMap<String, String>().also { m -> dir.list()?.forEach { m.putIfAbsent(it.lowercase(), it) } } }
+                cur = File(dir, known.getOrPut(seg.lowercase()) { seg })
+            }
+            return cur
+        }
+    }
+
+    /** A linked folder becomes a real folder of links (to the same files). */
+    private fun unlinkDir(dir: File) {
+        val target = File(Files.readSymbolicLink(dir.toPath()).toString())
+        Files.delete(dir.toPath())
+        dir.mkdirs()
+        target.listFiles()?.forEach { link(it, File(dir, it.name)) }
+    }
 
     /** Deletes a file or folder in the mirror. A link is removed itself, never followed into the player's files. */
     fun remove(f: File) {
@@ -60,28 +90,93 @@ object ModOverlay {
         while (p != null && p != root) { chain += p; p = p.parentFile }
         if (p == null) return   // not inside the mirror
         for (dir in chain.asReversed()) {
-            if (isLink(dir)) {
-                val target = File(Files.readSymbolicLink(dir.toPath()).toString())
-                Files.delete(dir.toPath())
-                dir.mkdirs()
-                target.listFiles()?.forEach { link(it, File(dir, it.name)) }
-            } else if (!dir.exists()) dir.mkdirs()
+            if (isLink(dir)) unlinkDir(dir)
+            else if (!dir.exists()) dir.mkdirs()
         }
     }
 
-    /** Lowercased mod-owned paths (Data-relative; "<root>/x" for the game's main folder) to their spelling in mods.json. */
+    /**
+     * From mods.json: lowercased mod-owned paths (Data-relative; "<root>/x" for the game's main folder) to their
+     * spelling, as written by the mod that put the current file there; and each path's owners, last one on top.
+     */
     private fun ownedPaths(game: File): Pair<Map<String, String>, Map<String, List<String>>> {
         val index = File(game, "SkyrimAYN/mods.json").takeIf { it.isFile }?.let { JSONObject(it.readText()) } ?: return emptyMap<String, String>() to emptyMap()
-        val spelling = HashMap<String, String>()
-        index.optJSONArray("mods")?.let { mods ->
-            for (i in 0 until mods.length()) mods.getJSONObject(i).optJSONArray("files")?.let { f -> for (j in 0 until f.length()) f.getString(j).let { spelling[it.lowercase()] = it } }
-        }
         val owners = HashMap<String, List<String>>()
         index.optJSONObject("owners")?.let { o -> o.keys().forEach { k -> owners[k] = o.getJSONArray(k).let { a -> List(a.length()) { a.getString(it) } } } }
+        val spelling = HashMap<String, String>()
+        val byOwner = HashMap<String, String>()   // "<mod id>|<lowercased path>" -> that mod's spelling
+        index.optJSONArray("mods")?.let { mods ->
+            for (i in 0 until mods.length()) {
+                val m = mods.getJSONObject(i)
+                val id = m.optString("id")
+                m.optJSONArray("files")?.let { f -> for (j in 0 until f.length()) f.getString(j).let { spelling[it.lowercase()] = it; byOwner["$id|${it.lowercase()}"] = it } }
+            }
+        }
+        for ((k, stack) in owners) stack.lastOrNull()?.let { byOwner["$it|$k"] }?.let { spelling[k] = it }
         return spelling to owners
     }
 
     private fun place(base: File, rel: String) = if (rel.startsWith(ModManager.ROOT)) File(base, rel.removePrefix(ModManager.ROOT)) else File(base, "Data/$rel")
+    private fun place(paths: Paths, rel: String) = if (rel.startsWith(ModManager.ROOT)) paths[rel.removePrefix(ModManager.ROOT)] else paths["Data/$rel"]
+
+    /** [f]'s path as mods.json writes it: Data-relative, or "<root>/x" for the game's main folder. */
+    private fun modPath(root: File, f: File): String {
+        val p = f.relativeTo(root).invariantSeparatorsPath
+        return if (p.startsWith("data/", ignoreCase = true)) p.substring(5) else ModManager.ROOT + p
+    }
+
+    /**
+     * 1.0.3 built mod paths with each mod's own spelling, so the case-sensitive mirror could hold "Meshes" and
+     * "meshes" side by side, and Skyrim saw only one of them (#11). Merges every such pair back into one folder.
+     * Where two files collide, the one the mods put there last wins, as it did in the player's folder.
+     */
+    private fun mergeCase(dir: File, root: File, spelling: Map<String, String>): Int {
+        var merged = 0
+        dir.listFiles()?.groupBy { it.name.lowercase() }?.values?.forEach { g -> if (g.size > 1) merged += mergeGroup(g, root, spelling) }
+        dir.listFiles()?.forEach { if (it.isDirectory && !isLink(it)) merged += mergeCase(it, root, spelling) }
+        return merged
+    }
+
+    private fun mergeGroup(group: List<File>, root: File, spelling: Map<String, String>): Int {
+        if (group.all { it.isDirectory }) {
+            // At most one is a link (the player's folder can't hold both spellings); keep a real folder.
+            val keep = group.firstOrNull { !isLink(it) } ?: return 0
+            group.filter { it != keep }.forEach { mergeInto(it, keep, root, spelling) }
+            return group.size - 1
+        }
+        if (group.none { it.isDirectory }) {
+            val keep = group.maxWith(compareBy<File>({ !isLink(it) }, { modPath(root, it).let { p -> spelling[p.lowercase()] == p } }, { it.lastModified() }))
+            group.filter { it != keep }.forEach(::remove)
+            return group.size - 1
+        }
+        return 0
+    }
+
+    /** Moves everything in [src] into the real folder [dst], then removes [src]. */
+    private fun mergeInto(src: File, dst: File, root: File, spelling: Map<String, String>) {
+        // A link to the player's folder: dropped; mirror() links its files into dst afterwards.
+        if (isLink(src)) { Files.delete(src.toPath()); return }
+        src.listFiles()?.forEach { c ->
+            val match = dst.listFiles()?.firstOrNull { it.name.equals(c.name, true) }
+            when {
+                match == null -> moveEntry(c, File(dst, c.name))
+                c.isDirectory && match.isDirectory -> {
+                    if (isLink(c)) Files.delete(c.toPath())
+                    else { if (isLink(match)) unlinkDir(match); mergeInto(c, match, root, spelling) }
+                }
+                !c.isDirectory && !match.isDirectory -> {
+                    val winner = listOf(match, c).maxWith(compareBy<File>({ !isLink(it) }, { modPath(root, it).let { p -> spelling[p.lowercase()] == p } }, { it.lastModified() }))
+                    if (winner === c) { remove(match); moveEntry(c, File(dst, c.name)) } else remove(c)
+                }
+            }
+        }
+        if (src.list()?.isEmpty() == true) src.delete()
+    }
+
+    private fun moveEntry(from: File, to: File) {
+        if (from.renameTo(to)) return
+        if (from.isFile && !isLink(from)) { from.copyTo(to, overwrite = true); from.delete() }
+    }
 
     /**
      * Brings the mirror up to date with the player's folder (new or removed game files) and, once, moves mods
@@ -93,6 +188,12 @@ object ModOverlay {
         val (spelling, owners) = ownedPaths(game)
         val ownedTop = owners.filterValues { it.isNotEmpty() && it.last() != "_base" }.keys
         if (!migratedMarker(filesDir, game).isFile) migrate(filesDir, game, root, spelling, ownedTop)
+        if (!caseFixedMarker(filesDir, game).isFile) {
+            val t0 = System.currentTimeMillis()
+            val merged = mergeCase(root, root, spelling)
+            caseFixedMarker(filesDir, game).writeText("${System.currentTimeMillis()}")
+            Timber.i("SkyrimAYN: merged $merged folders and files that differed only in case in ${System.currentTimeMillis() - t0} ms")
+        }
         mirror(game, root, "", ownedTop)
         return root
     }
@@ -123,12 +224,13 @@ object ModOverlay {
         val emptied = HashSet<File>()
         val todo = ownedTop.count { key -> place(game, spelling[key] ?: key).let { it.isFile && !isLink(it) } }
         if (todo > 0) moving.value = 0 to todo
+        val paths = Paths(root)
         try {
         for (key in ownedTop) {
             val rel = spelling[key] ?: key
             val from = place(game, rel)
             if (!from.isFile || isLink(from)) continue
-            val to = place(root, rel)
+            val to = place(paths, rel)
             materialize(root, to)
             if (isLink(to)) Files.delete(to.toPath())
             if (!(to.isFile && to.length() == from.length())) {

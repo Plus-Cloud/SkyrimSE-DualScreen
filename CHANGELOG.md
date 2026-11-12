@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.4
+
+- **Fixed black screens when loading a save or starting a New Game with some mod lists** (#11). Your Skyrim folder treats `Meshes` and `meshes` as the same folder, but the app's storage, where 1.0.3 moved mods, doesn't, so mods that spelled a folder differently could end up split in two and Skyrim only saw half of the files. Animation and behaviour mods were hit hardest. Mods now always join the folder that's already there, and the first launch of 1.0.4 merges any folders that were split. Nothing to reinstall.
+- **Fixed the app closing when you tapped the Effects line** on the companion's Character page (#12). The full list of active effects now opens over the companion.
+
 ## 1.0.3
 
 - **Both screens are now one app.** The companion is part of the game's own window instead of a second app, so Back, Home and launchers treat Skyrim as a single game: **Cocoon now pauses and resumes it properly** on dual screen, and nothing on the bottom screen ever takes the controller from the game.
