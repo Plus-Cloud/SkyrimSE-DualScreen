@@ -555,3 +555,6 @@ v103d.1 = CUSTOM
 v103d.2 = SAVE LOGS · OPEN GITHUB
 v103d.3 = Report saved to {}. Attach it to the GitHub issue.
 v103d.4 = Moving your mods into the app for faster loading (one time)… {} of {}
+v105.1 = Setting up your mod files (one time)… {} of {}
+v105.2 = Where's your Skyrim folder now?
+v105.3 = Skyrim isn't in {} any more. If you moved the folder, choose where it is now; your mods and settings come with it. If it's on an SD card, put the card back in.

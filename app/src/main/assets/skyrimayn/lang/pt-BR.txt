@@ -551,3 +551,6 @@ v103d.1 = PERSONALIZADO
 v103d.2 = SALVAR LOGS · ABRIR GITHUB
 v103d.3 = Relatório salvo em {}. Anexe-o à issue no GitHub.
 v103d.4 = Movendo seus mods para o app para carregar mais rápido (só uma vez)… {} de {}
+v105.1 = Preparando seus arquivos de mods (só uma vez)… {} de {}
+v105.2 = Onde está sua pasta do Skyrim agora?
+v105.3 = O Skyrim não está mais em {}. Se você moveu a pasta, escolha onde ela está agora; seus mods e configurações vão junto. Se estiver num cartão SD, coloque o cartão de volta.

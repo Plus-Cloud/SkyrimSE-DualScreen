@@ -103,17 +103,20 @@ class MainActivity : ComponentActivity() {
             SkyrimAynTheme {
                 val gameDir by GameFolder.dir.collectAsState()
                 val steam by SkyrimEngine.steam.collectAsState()
-                val setup = !hasFileAccess || gameDir == null || (steam != SteamState.LOGGED_IN && steam != SteamState.OFFLINE)
+                // The folder can go away after setup: moved out of Downloads, or an SD card not mounted. Asked again
+                // (checked on every return to the app) instead of failing at Play.
+                val folderThere = remember(gameDir, resumes) { gameDir?.let { java.io.File(it, "SkyrimSE.exe").isFile } == true }
+                val setup = !hasFileAccess || !folderThere || (steam != SteamState.LOGGED_IN && steam != SteamState.OFFLINE)
                 Box(Modifier.fillMaxSize()) {
                 when {
                     !hasFileAccess -> FileAccessStep(onAllow = ::requestAllFilesAccess)
-                    gameDir == null -> FolderStep()
+                    !folderThere -> FolderStep(movedFrom = gameDir)
                     steam != SteamState.LOGGED_IN && steam != SteamState.OFFLINE -> SteamStep(steam)
                     else -> {
                         // Updating from 1.0.2 or older: installed mods move into the app's storage once (see ModOverlay).
                         val moving by ModOverlay.moving.collectAsState()
                         TitleScreen(onPlay = ::play, refresh = resumes, busy = launching || moving != null,
-                            hint = moving?.let { (done, all) -> "Moving your mods into the app for faster loading (one time)… $done of $all" } ?: playHint)
+                            hint = moving?.let { (done, all) -> "Setting up your mod files (one time)… $done of $all" } ?: playHint)
                         modWarning?.let { broken ->
                             ModWarning(broken,
                                 onPlayAnyway = { modWarning = null; play(checkMods = false, checkSave = true) },
@@ -364,7 +367,7 @@ internal fun FileAccessStep(onAllow: () -> Unit) = Backdrop {
 }
 
 @Composable
-internal fun FolderStep() = Backdrop {
+internal fun FolderStep(movedFrom: String? = null) = Backdrop {
     val scope = rememberCoroutineScope()
     var checking by remember { mutableStateOf(false) }
     var problem by remember { mutableStateOf<String?>(null) }
@@ -385,8 +388,10 @@ internal fun FolderStep() = Backdrop {
         Spacer(Modifier.height(40.dp))
         StepLabel(2, "YOUR GAME")
         StepText(
-            "Select your Skyrim folder",
-            "Copy the \"Skyrim Special Edition\" folder from your PC's Steam library (steamapps/common) to the Thor, then choose it here. " +
+            if (movedFrom != null) "Where's your Skyrim folder now?" else "Select your Skyrim folder",
+            if (movedFrom != null) "Skyrim isn't in ${movedFrom.removePrefix("/storage/emulated/0/")} any more. If you moved the folder, choose where it is now; " +
+                "your mods and settings come with it. If it's on an SD card, put the card back in."
+            else "Copy the \"Skyrim Special Edition\" folder from your PC's Steam library (steamapps/common) to the Thor, then choose it here. " +
                 "It's the one with SkyrimSE.exe and the Data folder. Nothing is downloaded: you play the copy you own.",
         )
         Spacer(Modifier.height(36.dp))

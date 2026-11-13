@@ -551,3 +551,6 @@ v103d.1 = PERSONALIZADO
 v103d.2 = GUARDAR REGISTROS · ABRIR GITHUB
 v103d.3 = Informe guardado en {}. Adjúntalo a la incidencia de GitHub.
 v103d.4 = Moviendo tus mods a la app para cargar más rápido (solo una vez)… {} de {}
+v105.1 = Preparando tus archivos de mods (solo una vez)… {} de {}
+v105.2 = ¿Dónde está ahora tu carpeta de Skyrim?
+v105.3 = Skyrim ya no está en {}. Si moviste la carpeta, elige dónde está ahora; tus mods y ajustes van con ella. Si está en una tarjeta SD, vuelve a insertarla.

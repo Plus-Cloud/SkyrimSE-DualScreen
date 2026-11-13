@@ -43,3 +43,26 @@ class ModOverlayCaseTest {
         assertTrue(File(keep, "y/only.nif").isFile)
     }
 }
+
+/** SkyrimAYN/ created inside the mirror on a fresh install moves back to the player's folder (#13). */
+class ModOverlayOwnFolderTest {
+    @get:Rule val tmp = TemporaryFolder()
+
+    @Test fun moveOutKeepsNewerAndEmptiesTheMirrorCopy() {
+        val mirror = tmp.newFolder("mirror", "SkyrimAYN")
+        val own = tmp.newFolder("game", "SkyrimAYN")
+        File(mirror, "mods.json").writeText("mirror")
+        File(mirror, "downloads").mkdirs(); File(mirror, "downloads/a.7z").writeText("archive")
+        File(own, "state.bin").writeText("old")
+        File(mirror, "state.bin").apply { writeText("new"); setLastModified(System.currentTimeMillis() + 60_000) }
+        var n = 0
+        val m = ModOverlay::class.java.getDeclaredMethod("moveOut", File::class.java, File::class.java, kotlin.jvm.functions.Function0::class.java)
+        m.isAccessible = true
+        m.invoke(ModOverlay, mirror, own, { n++; Unit })
+        assertFalse(mirror.exists())
+        assertEquals("mirror", File(own, "mods.json").readText())
+        assertEquals("archive", File(own, "downloads/a.7z").readText())
+        assertEquals("new", File(own, "state.bin").readText())
+        assertEquals(3, n)
+    }
+}

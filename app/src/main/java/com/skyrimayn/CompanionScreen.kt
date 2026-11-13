@@ -1190,6 +1190,11 @@ private fun InGameSettings(onClose: () -> Unit, onNotice: (String) -> Unit) {
                 EntryRow("QUIT TO LAUNCHER", if (confirmQuit) "TAP AGAIN · UNSAVED PROGRESS IS LOST" else null) {
                     if (confirmQuit) SkyrimEngine.quitGame() else confirmQuit = true
                 }
+                // Here too, so a problem can be reported while it's happening (the logs then include it).
+                val context = androidx.compose.ui.platform.LocalContext.current
+                EntryRow("REPORT A PROBLEM", "SAVE LOGS · OPEN GITHUB") {
+                    scope.launch { onNotice(if (BugReport.share(context)) "Report saved to ${BugReport.lastSaved}. Attach it to the GitHub issue." else "Couldn't build the report") }
+                }
                 // Proof your installs worked: what the game itself loaded. (Skyrim's own menu only lists Creations.)
                 val loaded = player?.loadedMods.orEmpty()
                 SectionHeader("PLUGINS LOADED BY THE GAME (${loaded.size})")

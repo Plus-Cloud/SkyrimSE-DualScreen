@@ -551,3 +551,6 @@ v103d.1 = BENUTZERDEFINIERT
 v103d.2 = PROTOKOLLE SPEICHERN · GITHUB ÖFFNEN
 v103d.3 = Bericht gespeichert unter {}. Häng ihn an das GitHub-Issue an.
 v103d.4 = Deine Mods werden für schnelleres Laden in die App verschoben (einmalig)… {} von {}
+v105.1 = Deine Mod-Dateien werden eingerichtet (einmalig)… {} von {}
+v105.2 = Wo ist dein Skyrim-Ordner jetzt?
+v105.3 = Skyrim ist nicht mehr in {}. Wenn du den Ordner verschoben hast, wähle, wo er jetzt ist; deine Mods und Einstellungen kommen mit. Liegt er auf einer SD-Karte, setze die Karte wieder ein.

@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.5
+
+- **Fixed the bottom screen staying on "Load a save to begin" while playing** (#13). On a fresh install, the app's `SkyrimAYN` folder could end up inside the app's private copy of the game instead of your Skyrim folder, so the companion never saw the game. 1.0.5 moves it back the first time it opens; nothing to do.
+- **Report a Problem is now in the in-game ⚙ too**, so you can send logs while the problem is happening.
+- **Moved your Skyrim folder?** The app now notices and asks where it is, instead of failing when you press Play. Your mods and settings come with it. The same goes for a folder on an SD card that isn't in.
+
 ## 1.0.4
 
 - **Fixed black screens when loading a save or starting a New Game with some mod lists** (#11). Your Skyrim folder treats `Meshes` and `meshes` as the same folder, but the app's storage, where 1.0.3 moved mods, doesn't, so mods that spelled a folder differently could end up split in two and Skyrim only saw half of the files. Animation and behaviour mods were hit hardest. Mods now always join the folder that's already there, and the first launch of 1.0.4 merges any folders that were split. Nothing to reinstall.

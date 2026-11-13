@@ -551,3 +551,6 @@ v103d.1 = WŁASNE
 v103d.2 = ZAPISZ LOGI · OTWÓRZ GITHUB
 v103d.3 = Raport zapisano w {}. Dołącz go do zgłoszenia na GitHubie.
 v103d.4 = Przenoszę twoje mody do aplikacji, aby szybciej się wczytywały (jednorazowo)… {} z {}
+v105.1 = Przygotowuję pliki twoich modów (jednorazowo)… {} z {}
+v105.2 = Gdzie jest teraz twój folder Skyrim?
+v105.3 = Skyrima nie ma już w {}. Jeśli przeniesiono folder, wskaż jego nowe miejsce; mody i ustawienia przejdą razem z nim. Jeśli jest na karcie SD, włóż kartę z powrotem.

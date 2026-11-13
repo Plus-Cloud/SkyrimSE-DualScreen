@@ -183,8 +183,11 @@ object ModOverlay {
      * installed by older builds out of the player's folder. Returns the mirror. Cheap when nothing changed.
      */
     @Synchronized fun sync(filesDir: File, game: File): File {
+        // A folder that was moved, or an SD card not mounted yet: change nothing (the mirror would lose its links).
+        check(File(game, "SkyrimSE.exe").isFile) { "Skyrim folder not found: $game" }
         val root = rootFor(filesDir, game)
         root.mkdirs()
+        adoptOwnFolder(game, root)
         val (spelling, owners) = ownedPaths(game)
         val ownedTop = owners.filterValues { it.isNotEmpty() && it.last() != "_base" }.keys
         if (!migratedMarker(filesDir, game).isFile) migrate(filesDir, game, root, spelling, ownedTop)
@@ -196,6 +199,56 @@ object ModOverlay {
         }
         mirror(game, root, "", ownedTop)
         return root
+    }
+
+    /**
+     * SkyrimAYN/ (mods.json, downloads, and the state.bin the companion reads) belongs in the player's folder.
+     * On a fresh install it didn't exist yet when the mirror was first made, so the app and the game created it
+     * inside the mirror instead: the companion never saw the game ("Load a save to begin" in game, #13), and the
+     * mod list wouldn't survive an uninstall. Moves whatever is there into the player's folder and links it.
+     */
+    private fun adoptOwnFolder(game: File, root: File) {
+        val own = File(game, "SkyrimAYN")
+        own.mkdirs()
+        val inMirror = root.list()?.firstOrNull { it.equals("SkyrimAYN", true) }?.let { File(root, it) }
+        if (inMirror != null && !isLink(inMirror)) {
+            if (ModManager.gameRunning()) return   // the game has state.bin open; next time
+            val t0 = System.currentTimeMillis()
+            val count = countFiles(inMirror)
+            if (count > 20) moving.value = 0 to count
+            var done = 0
+            try {
+                moveOut(inMirror, own) { done++; if (count > 20) moving.value = minOf(done, count) to count }
+            } finally { moving.value = null }
+            if (inMirror.exists() && !isLink(inMirror)) return   // something couldn't move; try again next time
+            Timber.i("SkyrimAYN: moved $done files from the mirror's SkyrimAYN folder to the player's in ${System.currentTimeMillis() - t0} ms")
+        }
+        if (own.isDirectory) link(own, File(root, own.name))
+    }
+
+    private fun countFiles(dir: File): Int = dir.listFiles()?.sumOf { if (isLink(it)) 0 else if (it.isDirectory) countFiles(it) else 1 } ?: 0
+
+    /** Moves the real files under [src] into [dst] (keeping the newer copy where both exist), then removes [src]. */
+    private fun moveOut(src: File, dst: File, onFile: () -> Unit) {
+        dst.mkdirs()
+        src.listFiles()?.forEach { c ->
+            val d = File(dst, c.name)
+            when {
+                isLink(c) -> Files.delete(c.toPath())   // already a link to the player's file
+                c.isDirectory -> moveOut(c, d, onFile)
+                else -> {
+                    if (!d.isFile || c.lastModified() > d.lastModified()) {
+                        val tmp = File(d.path + ".moving")
+                        c.copyTo(tmp, overwrite = true)
+                        tmp.setLastModified(c.lastModified())
+                        if (!tmp.renameTo(d)) { tmp.copyTo(d, overwrite = true); tmp.delete() }
+                    }
+                    c.delete()
+                    onFile()
+                }
+            }
+        }
+        src.delete()
     }
 
     private fun mirror(src: File, dst: File, rel: String, owned: Set<String>) {
