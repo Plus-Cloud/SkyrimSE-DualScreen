@@ -2,7 +2,7 @@
 
 ## 1.0.5
 
-- **Fixed the bottom screen staying on "Load a save to begin" while playing** (#13). On a fresh install, the app's `SkyrimAYN` folder could end up inside the app's private copy of the game instead of your Skyrim folder, so the companion never saw the game. 1.0.5 moves it back the first time it opens; nothing to do.
+- **Fixed the bottom screen staying on "Load a save to begin" while playing** (#13). On a fresh install, the app's `SkyrimAYN` folder (where the game tells the companion what's happening) could end up in the app's own storage, where your mods live, instead of in your Skyrim folder, so the companion never saw the game. 1.0.5 moves it back the first time it opens; nothing to do.
 - **Report a Problem is now in the in-game ⚙ too**, so you can send logs while the problem is happening.
 - **Moved your Skyrim folder?** The app now notices and asks where it is, instead of failing when you press Play. Your mods and settings come with it. The same goes for a folder on an SD card that isn't in.
 
