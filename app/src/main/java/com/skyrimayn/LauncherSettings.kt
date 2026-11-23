@@ -12,7 +12,27 @@ class Choice(val key: String, val label: String, val options: List<String>, val 
  * For now they're only saved. Phase 1 applies them to the INIs and the engine on Play.
  */
 object LauncherSettings {
-    val resolution = Choice("resolution", "Resolution", listOf("720p", "900p", "1080p"), "720p")
+    /** 360p / 480p: for heavy shader and weather mods, rendered small and upscaled with FSR (see [upscaling]). */
+    val resolution = Choice("resolution", "Resolution", listOf("360p", "480p", "720p", "900p", "1080p"), "720p")
+    /**
+     * How the game's picture is enlarged to the 1080p screen. Auto: AMD FSR 1 (edge-aware upscale + sharpening) below
+     * 720p, where plain smoothing looks soft; 720p and up keep the smoothing they always had. FSR: always. Off: never.
+     */
+    val upscaling = Choice("upscaling", "Upscaling", listOf("Auto", "FSR", "Off"), "Auto")
+    /** The game's render size for a [resolution] choice (16:9 like the Thor's screen). */
+    fun renderSize(v: String): Pair<Int, Int> = when (v) {
+        "360p" -> 640 to 360
+        "480p" -> 854 to 480
+        "900p" -> 1600 to 900
+        "1080p" -> 1920 to 1080
+        else -> 1280 to 720
+    }
+    /** True when FSR should enlarge the picture for these settings. */
+    fun useFsr(resolution: String, upscaling: String) = when (upscaling) {
+        "FSR" -> true
+        "Off" -> false
+        else -> renderSize(resolution).second < 720
+    }
     /** Thor: Low plus the cheap things that look good, with the frame-eaters off (see SkyrimIni). */
     val quality = Choice("quality", "Graphics", listOf("Thor", "Low", "Medium", "High"), "Thor")
     /** Any whole number from [FPS_MIN] to [FPS_MAX] (a slider); Power picks 30 / 40 / 60. */
@@ -71,7 +91,7 @@ object LauncherSettings {
 
     val language = Choice("language", "Language", I18n.languages.map { it.first }, "English")
 
-    val all = listOf(language, resolution, quality, fpsCap, fpsCustom, power, translator, companion, heatGuard, hudCompass, hudBars, hudEnemy, haptics, perfHud, frameGen,
+    val all = listOf(language, resolution, upscaling, quality, fpsCap, fpsCustom, power, translator, companion, heatGuard, hudCompass, hudBars, hudEnemy, haptics, perfHud, frameGen,
         pauseMenus, menuSounds, mods, achievementPopup, achievementSound, adultMods, itemSort, gyroAim, gyroSensitivity, gameLightDim)
 
     /** Which parts of the game's HUD to hide, as the plugin's mask (1 compass, 2 bars, 4 enemy health). */

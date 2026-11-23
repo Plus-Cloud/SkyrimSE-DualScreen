@@ -48,6 +48,50 @@ class ModPreloaderTest {
         assertTrue("<root>/d3dx9_42.dll" in m.keys)
     }
 
+    @Test fun skseArchive_wrapperWithData_goesToGameFolder() {
+        val m = ModManager.mapArchive(archive(
+            "skse64_2_03_01/skse64_1_7_104.dll", "skse64_2_03_01/skse64_loader.exe", "skse64_2_03_01/skse64_readme.txt",
+            "skse64_2_03_01/Data/Scripts/Actor.pex", "skse64_2_03_01/src/skse64/main.cpp"), isSkse = true)
+        assertTrue("<root>/skse64_loader.exe" in m.keys)
+        assertTrue("<root>/skse64_1_7_104.dll" in m.keys)
+    }
+
+    @Test fun skseArchive_noData_goesToGameFolder() {
+        val m = ModManager.mapArchive(archive(
+            "skse64_2_03_01/skse64_1_7_104.dll", "skse64_2_03_01/skse64_loader.exe", "skse64_2_03_01/src/skse64/main.cpp"), isSkse = true)
+        assertTrue("<root>/skse64_loader.exe" in m.keys)
+    }
+
+    @Test fun skseArchive_recognisedByContents() {
+        val staging = archive("skse64_2_03_01/skse64_1_7_104.dll", "skse64_2_03_01/skse64_loader.exe", "skse64_2_03_01/Data/Scripts/Actor.pex")
+        assertTrue(ModManager.isSkseArchive(staging))
+        assertTrue("<root>/skse64_loader.exe" in ModManager.mapArchive(staging, ModManager.isSkseArchive(staging)).keys)
+        assertFalse(ModManager.isSkseArchive(archive("SKSE/Plugins/EngineFixes.dll")))
+    }
+
+    @Test fun skseProblem_flagsGithubBuildAndMissingSkse() {
+        val ok = archive("skse64_loader.exe", "skse64_1_7_104.dll", "Data/SKSE/Plugins/EngineFixes.dll")
+        assertEquals(null, SkyrimEngine.skseProblem(ok.path))
+        val github = archive("skse64_loader.exe", "skse64_1_6_1170.dll")
+        assertTrue(SkyrimEngine.skseProblem(github.path)!!.contains("1.6.1170"))
+        val missing = archive("Data/SKSE/Plugins/EngineFixes.dll")
+        assertTrue(SkyrimEngine.skseProblem(missing.path)!!.contains("isn't installed"))
+        assertEquals(null, SkyrimEngine.skseProblem(archive("Data/SKSE/Plugins/SkyrimAYN.dll").path))
+    }
+
+    @Test fun skseFile_picksTheBuildFor1_7_104_notPrimary() {
+        fun f(id: Int, name: String, ver: String, primary: Boolean, file: String) =
+            NexusApi.ModFile(id, name, ver, "MAIN", primary, 1, file, 0, "")
+        val files = listOf(
+            f(1, "SKSE64 for 1.5.97", "2.0.20", true, "skse64_2_00_20.7z"),
+            f(2, "SKSE64 GOG", "2.3.1", false, "skse64_gog_2_03_01.7z").copy(name = "SKSE64 GOG"),
+            f(3, "SKSE64 Current", "2.3.1", false, "skse64_2_03_01.7z"),
+        )
+        // GOG also says 2.3.1 and the 1.5.97 build is "primary": the Steam 1.7.104 build must still win.
+        assertEquals(3, ModManager.skseFile(files)?.fileId)
+        assertEquals(3, ModManager.skseFile(files.reversed())?.fileId)
+    }
+
     @Test fun overrides_onlyOurLoader_whenNoPreloader() {
         val game = tmp.newFolder().apply { File(this, "SkyrimSE.exe").writeText("x") }
         assertEquals("dinput8=n,b", SkyrimEngine.dllOverrides("", game))

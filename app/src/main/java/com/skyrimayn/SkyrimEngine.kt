@@ -78,6 +78,7 @@ object SkyrimEngine {
 
     fun start(context: Context) {
         appCtx = context.applicationContext
+        Problems.init(context)
         ensureSteam(context)
         if (started) return
         started = true
@@ -158,6 +159,12 @@ object SkyrimEngine {
     fun firstLaunch() = !everStarted()
     private fun everStarted() = appCtx?.getSharedPreferences("launcher", 0)?.getBoolean("ever_started", false) == true
 
+    /** A launch failed: tell the player (the notice offers SEND REPORT) and remember it for the report. */
+    private fun fail(title: String, message: String, facts: String = "") {
+        launchNotice.value = message
+        Problems.record(title, if (facts.isEmpty()) message else "$message ($facts)")
+    }
+
     fun onGuestExited(status: Int) {
         launchStartedAt = 0L
         launchToken = 0L
@@ -166,12 +173,12 @@ object SkyrimEngine {
         if (modsStuck) {
             modsStuck = false
             LauncherSettings.set(LauncherSettings.mods, "Disabled")
-            launchNotice.value = "Skyrim got stuck starting with your mods, so PLAY WITH MODS has been turned off. Press Play to start without them."
+            fail("Stuck starting with mods", "Skyrim got stuck starting with your mods, so PLAY WITH MODS has been turned off. Press Play to start without them.")
         }
         if (shown) {
             appCtx?.getSharedPreferences("launcher", 0)?.edit()?.putBoolean("ever_started", true)?.apply()
             if (status != 0 && !closedByUs && launchNotice.value == null)
-                launchNotice.value = "Skyrim closed unexpectedly. If it keeps happening, try turning PLAY WITH MODS off, or use Report a problem in the launcher's settings."
+                fail("Skyrim closed unexpectedly", "Skyrim closed unexpectedly. If it keeps happening, try turning PLAY WITH MODS off, or tap SEND REPORT.", "exit status $status")
             return
         }
         if (steamRestart) {
@@ -197,12 +204,12 @@ object SkyrimEngine {
         Timber.w("SkyrimAYN: launch ended before Skyrim's window (status $status)")
         if (LauncherSettings.get(LauncherSettings.frameGen) != "Off") {
             LauncherSettings.set(LauncherSettings.frameGen, "Off")
-            launchNotice.value = "Skyrim didn't start with Frame Generation on, so it's been turned off. Press Play again."
+            fail("Didn't start with Frame Generation", "Skyrim didn't start with Frame Generation on, so it's been turned off. Press Play again.", "exit status $status")
         } else if (launchStuck) {
             launchStuck = false
-            launchNotice.value = "Skyrim took too long to start, so it was closed. Press Play to try again; if it keeps happening, restart the Thor."
+            fail("Launch timed out", "Skyrim took too long to start, so it was closed. Press Play to try again; if it keeps happening, restart the Thor.")
         } else if (status != 0) {
-            launchNotice.value = "Skyrim didn't start. Press Play to try again; if it keeps happening, restart the Thor."
+            fail("Skyrim didn't start", "Skyrim didn't start. Press Play to try again; if it keeps happening, restart the Thor.", "exit status $status")
         }
     }
 
@@ -285,6 +292,24 @@ object SkyrimEngine {
     }.onFailure { Timber.w(it, "SkyrimAYN: couldn't switch to the unpacked SkyrimSE.exe") }
 
     fun skseInstalled(gameDir: String) =File(gameDir, "skse64_loader.exe").isFile && File(gameDir, "skse64_1_7_104.dll").isFile
+
+    /**
+     * Why mods needing SKSE won't work, in a sentence for the player, or null when they will (or none need it).
+     * Catches the common traps: SKSE from GitHub (stops at 2.2.6, built for 1.6.1170) and SKSE plugins with no SKSE.
+     */
+    fun skseProblem(gameDir: String): String? {
+        if (skseInstalled(gameDir)) return null
+        val dir = File(gameDir)
+        val other = dir.listFiles()?.map { it.name }?.firstOrNull { Regex("^skse64_1_\\d+_\\d+\\.dll$", RegexOption.IGNORE_CASE).matches(it) }
+        if (other != null) {
+            val ver = other.removePrefix("skse64_").removeSuffix(".dll").replace('_', '.')
+            return "Your Script Extender is built for Skyrim $ver, not ${GameFolder.SUPPORTED_VERSION}."
+        }
+        val plugins = dir.listFiles()?.firstOrNull { it.name.equals("Data", true) }?.listFiles()
+            ?.firstOrNull { it.name.equals("SKSE", true) }?.listFiles()?.firstOrNull { it.name.equals("Plugins", true) }
+            ?.listFiles()?.any { it.name.endsWith(".dll", true) && !it.name.equals("SkyrimAYN.dll", true) } == true
+        return if (plugins) "Some of your mods need the Script Extender (SKSE), which isn't installed." else null
+    }
 
     /**
      * Copies the companion into the game folder: SkyrimAYN.dll plus our dinput8.dll, which loads it when SKSE
@@ -480,12 +505,15 @@ object SkyrimEngine {
     suspend fun configureContainer(context: Context) = withContext(Dispatchers.IO) {
         patchEngineFiles(context)
         val c = ContainerUtils.getOrCreateContainer(context, CONTAINER_ID)
-        val (w, h) = when (LauncherSettings.get(LauncherSettings.resolution)) {
-            "1080p" -> 1920 to 1080
-            "900p" -> 1600 to 900
-            else -> 1280 to 720
-        }
+        val res = LauncherSettings.get(LauncherSettings.resolution)
+        val (w, h) = LauncherSettings.renderSize(res)
         c.setScreenSize("${w}x$h")
+        // Upscaling to the 1080p screen: the engine's FSR 1 (EASU upscale + RCAS sharpen), read when the game starts.
+        val fsr = LauncherSettings.useFsr(res, LauncherSettings.get(LauncherSettings.upscaling))
+        c.putExtra(app.gamenative.ui.util.ScreenEffectsConfig.KEY_SCALING_MODE,
+            if (fsr) app.gamenative.ui.util.ScreenEffectsConfig.SCALING_MODE_FSR_ASPECT else app.gamenative.ui.util.ScreenEffectsConfig.SCALING_MODE_NONE)
+        c.putExtra(app.gamenative.ui.util.ScreenEffectsConfig.KEY_FSR_SHARPNESS, app.gamenative.ui.util.ScreenEffectsConfig.FSR_DEFAULT_LEVEL)
+        Timber.i("SkyrimAYN: rendering ${w}x$h, upscaling ${if (fsr) "FSR" else "smooth"}")
         GameFolder.dir.value?.let { gameDir ->
             ModManager.whileIdle { ModOverlay.prepare(context.filesDir, File(gameDir)) }
             runCatching {
@@ -509,6 +537,12 @@ object SkyrimEngine {
         // Mods off means their SKSE plugins too: a bad plugin must not be able to hang the "without mods" launch.
         val skse = ModOverlay.activeDir()?.let(::skseInstalled) == true
         c.setExecutablePath(if (skse) "skse64_loader.exe" else "SkyrimSE.exe")
+        ModOverlay.activeDir()?.let(::skseProblem)?.let { ModManager.postNotice(it); Problems.record("SKSE problem", it) }
+        ModOverlay.activeDir()?.takeIf { ModManager.engineFixesPart2Missing(File(it)) }?.let {
+            val m = "SSE Engine Fixes is missing its Part 2, so Skyrim will show an Engine Fixes error. Install Part 2 from the Engine Fixes page."
+            ModManager.postNotice(m); Problems.record("Engine Fixes Part 2 missing", m)
+        }
+        Timber.i("SkyrimAYN: launching ${if (skse) "through SKSE" else "without SKSE"}")
         if (offlineLaunch()) {
             // No internet: Steam can't sign in, and Skyrim's copy protection won't start without it. Use the
             // engine's DRM-free path instead: SkyrimSE.exe with Steam's protection removed (Steamless, once;
@@ -574,6 +608,7 @@ object SkyrimEngine {
         val skyrim = n.equals("Skyrim Special Edition", true) || c.equals("Skyrim Special Edition", true) ||
             c.contains("skyrimse", true)
         if (skyrim && !n.contains("skse64_loader", true)) {
+            if (!_gameWindow.value) BottomScreenHost.ensureTopFocus()
             _gameWindow.value = true
             // Remember right away: sessions usually end with the app closed, not a clean exit.
             if (!everStarted()) appCtx?.getSharedPreferences("launcher", 0)?.edit()?.putBoolean("ever_started", true)?.apply()
@@ -582,6 +617,9 @@ object SkyrimEngine {
 
     /** True from Play until the game screen is up (or the launch fails). The engine never closes itself meanwhile. */
     @Volatile private var launchStartedAt = 0L
+    /** When Play was last pressed in this run of the app (never reset): logs older than this are from an earlier game. */
+    @Volatile var lastLaunchAt = 0L
+        private set
     fun isLaunching(): Boolean = launchStartedAt != 0L && System.currentTimeMillis() - launchStartedAt < 10 * 60_000
     fun launchSettled() {
         launchStartedAt = 0L
@@ -773,6 +811,7 @@ object SkyrimEngine {
     fun launch(activity: Activity) {
         val started = System.currentTimeMillis()
         launchStartedAt = started
+        lastLaunchAt = started
         launchToken = started
         launchStuck = false
         steamRestart = false

@@ -346,6 +346,14 @@ internal fun LauncherPage(gameRunning: Boolean, onBackToGame: () -> Unit, onMods
 
         SectionHeader("DISPLAY")
         Selector(LauncherSettings.resolution, values)
+        Selector(LauncherSettings.upscaling, values)
+        val res = values[LauncherSettings.resolution.key] ?: LauncherSettings.resolution.default
+        val fsrOn = LauncherSettings.useFsr(res, values[LauncherSettings.upscaling.key] ?: LauncherSettings.upscaling.default)
+        if (res == "360p" || res == "480p" || fsrOn)
+            SkyText(
+                (if (res == "360p" || res == "480p") "For heavy shader and weather mods: Skyrim renders at $res. " else "") +
+                    (if (fsrOn) "AMD FSR enlarges and sharpens it for the screen." else "The picture is enlarged with plain smoothing."),
+                11.sp, Sky.Faint, 0.5.sp, light = true, maxLines = 2, modifier = Modifier.padding(start = 6.dp, bottom = 4.dp))
         Selector(LauncherSettings.quality, values)
         if ((values[LauncherSettings.quality.key] ?: LauncherSettings.quality.default) == "Thor")
             SkyText("Tuned for the Thor: blood and impact effects, weather and distant detail kept; the costly effects off.",
@@ -434,7 +442,7 @@ internal fun LauncherPage(gameRunning: Boolean, onBackToGame: () -> Unit, onMods
         SectionHeader("GAME")
         Selector(LauncherSettings.language, values, label = "LANGUAGE")
         EntryRow("REPORT A PROBLEM", "SAVE LOGS · OPEN GITHUB") {
-            scope.launch { notice = if (BugReport.share(context)) "Report saved to ${BugReport.lastSaved}. Attach it to the GitHub issue." else "Couldn't build the report" }
+            BugReport.askAndShare(context, scope) { notice = it }
         }
         var confirmFolder by remember { mutableStateOf(false) }
         LaunchedEffect(confirmFolder) { if (confirmFolder) { delay(3000); confirmFolder = false } }

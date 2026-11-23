@@ -4,10 +4,52 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
+
+/**
+ * The last thing that went wrong, as the app saw it (a crash, a stuck launch, mods hanging, SKSE missing...).
+ * Kept across restarts, so a report sent after reopening the app still says what happened. A report fills in its
+ * title and "what happened" from this, so the player doesn't have to describe it.
+ */
+object Problems {
+    data class Problem(val title: String, val detail: String, val at: Long)
+    private const val PREFS = "problems"
+    /** Older than this, a problem isn't assumed to be what a report is about. */
+    private const val FRESH_MS = 6 * 60 * 60 * 1000L
+
+    private val _last = kotlinx.coroutines.flow.MutableStateFlow<Problem?>(null)
+    val last: kotlinx.coroutines.flow.StateFlow<Problem?> = _last
+    private var ctx: Context? = null
+
+    fun init(context: Context) {
+        if (ctx != null) return
+        ctx = context.applicationContext
+        val p = context.getSharedPreferences(PREFS, 0)
+        val title = p.getString("title", null) ?: return
+        _last.value = Problem(title, p.getString("detail", "").orEmpty(), p.getLong("at", 0))
+    }
+
+    /** [title]: a short issue title ("Skyrim closed unexpectedly"). [detail]: what the player was told, plus facts. */
+    fun record(title: String, detail: String) {
+        val p = Problem(title, detail, System.currentTimeMillis())
+        _last.value = p
+        timber.log.Timber.w("SkyrimAYN: problem: $title — $detail")
+        ctx?.getSharedPreferences(PREFS, 0)?.edit()?.putString("title", p.title)?.putString("detail", p.detail)?.putLong("at", p.at)?.apply()
+    }
+
+    /** The problem a report made now is most likely about, if any. */
+    fun recent(): Problem? = _last.value?.takeIf { System.currentTimeMillis() - it.at < FRESH_MS }
+
+    /** After a report was sent for it: the next report starts fresh. */
+    fun clear() {
+        _last.value = null
+        ctx?.getSharedPreferences(PREFS, 0)?.edit()?.clear()?.apply()
+    }
+}
 
 /** Bundles what's needed to diagnose a problem into a zip in Downloads and opens a GitHub issue for it. Sign-in secrets are removed. */
 object BugReport {
@@ -37,6 +79,7 @@ object BugReport {
         val memory = android.app.ActivityManager.MemoryInfo().also { (ctx.getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager).getMemoryInfo(it) }
         appendLine("RAM ${memory.totalMem / (1024 * 1024)} MB")
         appendLine("SKSE installed: ${GameFolder.modded()?.let { SkyrimEngine.skseInstalled(it) } == true}")
+        GameFolder.modded()?.let(SkyrimEngine::skseProblem)?.let { appendLine("SKSE problem: $it") }
         appendLine()
         LauncherSettings.values.value.toSortedMap().forEach { (k, v) -> appendLine("$k = $v") }
         appendLine()
@@ -53,7 +96,22 @@ object BugReport {
     }
 
     /** Opens the share sheet with the report. Returns false if it couldn't be built. */
-    suspend fun share(ctx: Context): Boolean {
+    /**
+     * What the Report buttons call: asks the player what happened (a text box with the bottom screen's keyboard;
+     * Enter sends), then builds the report and opens the filled-in issue. [onResult] gets the line to show after.
+     * Without a bottom screen (single-screen), goes straight on without asking.
+     */
+    fun askAndShare(ctx: Context, scope: kotlinx.coroutines.CoroutineScope, onResult: (String) -> Unit) {
+        var typed = ""
+        fun send() = scope.launch { onResult(if (share(ctx, typed.trim())) attachHint() else "Couldn't build the report") }
+        val label = Problems.recent()?.let { "What were you doing when it happened? (optional, Enter sends)" }
+            ?: "What went wrong? (Enter sends)"
+        val asked = BottomScreenHost.editText(label = label, initial = "", onChange = { typed = it }, onDone = { send() })
+        if (!asked) send()
+    }
+
+    /** Builds the report (with [note], the player's own words) and opens a pre-filled GitHub issue. */
+    suspend fun share(ctx: Context, note: String = ""): Boolean {
         val zip = withContext(Dispatchers.IO) {
             runCatching {
                 val game = GameFolder.dir.value?.let(::File)
@@ -83,21 +141,48 @@ object BugReport {
             }.getOrNull()
         } ?: return false
         lastSaved = "Download/${saved.name}"
-        val body = buildString {
-            appendLine("**What happened?**")
-            appendLine()
-            appendLine()
-            appendLine("**Steps to reproduce**")
-            appendLine()
-            appendLine()
-            appendLine("**Report file:** please attach `${lastSaved}` from the Thor (drag it into this box).")
-            appendLine()
-            appendLine("App ${Updater.currentVersion} · ${Build.MANUFACTURER} ${Build.MODEL} · Android ${Build.VERSION.RELEASE}")
-        }
+        val problem = Problems.recent()
         val url = android.net.Uri.parse("https://github.com/$REPO/issues/new").buildUpon()
             .appendQueryParameter("labels", "bug")
-            .appendQueryParameter("body", body).build()
+            .appendQueryParameter("title", title(problem, note))
+            .appendQueryParameter("body", body(problem, saved.name, note)).build()
         runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, url).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+        problem?.let { Problems.clear() }
         return true
+    }
+
+    /** What the launcher says after building a report: the one step left for the player. */
+    fun attachHint(): String = "Report saved. On the GitHub page, tap \"Paste, drop, or click to add files\" under the text box " +
+        "and pick ${lastSaved?.substringAfterLast('/') ?: "the report"} from Downloads, then Submit."
+
+    internal fun title(problem: Problems.Problem?, note: String = ""): String =
+        "[${Updater.currentVersion}] " + (problem?.title ?: note.trim().take(60).ifEmpty { "Problem report" })
+
+    /** The issue text, filled in as far as the app can: what went wrong, the setup that matters, and the file to attach. */
+    internal fun body(problem: Problems.Problem?, fileName: String, note: String = ""): String = buildString {
+        appendLine("**What happened**")
+        if (problem != null) {
+            val fmt = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.US)
+            appendLine("_Detected by the app at ${fmt.format(java.util.Date(problem.at))}:_ ${problem.detail}")
+            appendLine()
+            appendLine()
+            appendLine(if (note.isNotBlank()) "**In the player's words:** ${note.take(1000)}" else "Anything else you noticed (optional):")
+        } else {
+            appendLine(if (note.isNotBlank()) note.take(1000) else "(Describe what went wrong and what you were doing.)")
+        }
+        appendLine()
+        appendLine()
+        appendLine("**Setup**")
+        appendLine("- App ${Updater.currentVersion} · plugin ${SkyrimEngine.PLUGIN_VERSION} · ${Build.MANUFACTURER} ${Build.MODEL} · Android ${Build.VERSION.RELEASE}")
+        val s = LauncherSettings.values.value
+        appendLine("- Mods: ${s["mods"] ?: "?"} (${ModManager.mods.value.size} installed) · Frame gen: ${s["frame_gen"] ?: "?"} · Power: ${s["power"] ?: "?"} · Translator: ${s["translator"] ?: "?"}")
+        val modded = GameFolder.modded()
+        appendLine("- SKSE: " + when {
+            modded == null -> "?"
+            SkyrimEngine.skseInstalled(modded) -> "installed"
+            else -> SkyrimEngine.skseProblem(modded) ?: "not installed"
+        })
+        appendLine()
+        appendLine("**Report file** (logs, no passwords): tap \"Paste, drop, or click to add files\" below and pick `$fileName` from Downloads.")
     }
 }

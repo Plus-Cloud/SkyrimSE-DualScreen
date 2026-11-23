@@ -587,10 +587,22 @@ private fun TitleScreen(onPlay: () -> Unit, hint: String?, busy: Boolean, refres
             else -> {}
         }
         val notice by SkyrimEngine.launchNotice.collectAsState()
+        val problem by Problems.last.collectAsState()
+        val reportScope = rememberCoroutineScope()
+        var reporting by remember { mutableStateOf(false) }
         notice?.let { n ->
+            // Something went wrong (not just "starting again…"): one tap builds the report and opens a filled-in issue.
+            val canReport = problem?.detail?.startsWith(n) == true
             Column(Modifier.align(Alignment.TopCenter).padding(top = 28.dp).widthIn(max = 900.dp).background(Color(0xCC000000))
                 .border(1.dp, Color(0x55FFFFFF)).clickable { SkyrimEngine.launchNotice.value = null }.padding(horizontal = 18.dp, vertical = 10.dp)) {
-                SkyText(n, 14.sp, Sky.Text, 0.5.sp, maxLines = 2)
+                SkyText(n, 14.sp, Sky.Text, 0.5.sp, maxLines = 3)
+                if (canReport) {
+                    SkyText(if (reporting) "TYPE ON THE BOTTOM SCREEN…" else "SEND REPORT  ›", 12.sp, Sky.Text, 3.sp,
+                        modifier = Modifier.padding(top = 8.dp).border(1.dp, Color(0x88FFFFFF)).clickable {
+                            reporting = true
+                            BugReport.askAndShare(context, reportScope) { SkyrimEngine.launchNotice.value = it; reporting = false }
+                        }.padding(horizontal = 14.dp, vertical = 6.dp))
+                }
             }
         }
         val steamState by SkyrimEngine.steam.collectAsState()

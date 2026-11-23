@@ -117,7 +117,8 @@ fun CompanionScreen(onLauncher: () -> Unit, startTab: String? = null, startSetti
             if (player != null) QuickBar(lists) { toast = it }
         }
         toast?.let { Notice(it) }
-        if (player != null) Feed(Modifier.align(Alignment.BottomStart).padding(start = 10.dp, bottom = if (tab == Tab.MAP) 70.dp else 70.dp))
+        // Shown at the main menu too: "MOD DIDN'T LOAD" arrives before any save is loaded.
+        Feed(Modifier.align(Alignment.BottomStart).padding(start = 10.dp, bottom = if (player != null) 70.dp else 16.dp))
         if (showSettings) InGameSettings(onClose = { GameSounds.play(GameSounds.Cue.CANCEL); showSettings = false }) { toast = it }
         if (walkthrough && player != null) Walkthrough {
             walkthrough = false
@@ -1193,7 +1194,7 @@ private fun InGameSettings(onClose: () -> Unit, onNotice: (String) -> Unit) {
                 // Here too, so a problem can be reported while it's happening (the logs then include it).
                 val context = androidx.compose.ui.platform.LocalContext.current
                 EntryRow("REPORT A PROBLEM", "SAVE LOGS · OPEN GITHUB") {
-                    scope.launch { onNotice(if (BugReport.share(context)) "Report saved to ${BugReport.lastSaved}. Attach it to the GitHub issue." else "Couldn't build the report") }
+                    BugReport.askAndShare(context, scope) { onNotice(it) }
                 }
                 // Proof your installs worked: what the game itself loaded. (Skyrim's own menu only lists Creations.)
                 val loaded = player?.loadedMods.orEmpty()

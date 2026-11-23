@@ -283,6 +283,25 @@ object BottomScreenHost : Application.ActivityLifecycleCallbacks {
         textRequest = null
     }
 
+    /**
+     * The game just came up: make sure the controller drives it (#14). The companion can't take focus, but if
+     * Android made the bottom screen the focused one (a tap there during setup, a launcher resuming behind the
+     * companion), keys go to whatever sits behind it and the game never sees the gamepad. Checked twice, and
+     * only acted on when the top screen really lacks focus, so this can't loop with the trampoline.
+     */
+    fun ensureTopFocus() {
+        listOf(500L, 3000L).forEach { delay ->
+            main.postDelayed({
+                val top = topScreen?.takeIf { !it.isDestroyed && !it.isFinishing } ?: return@postDelayed
+                if (!top.hasWindowFocus() && pickers == 0 && !keyboardHere) {
+                    timber.log.Timber.w("SkyrimAYN: top screen had no input focus when the game started; taking it back")
+                    main.removeCallbacks(returnFocus)
+                    main.post(returnFocus)
+                }
+            }, delay)
+        }
+    }
+
     /** An invisible activity opened (and closed at once) on the top screen makes it Android's focused screen again. */
     private val returnFocus = Runnable {
         val top = topScreen?.takeIf { !it.isDestroyed } ?: return@Runnable

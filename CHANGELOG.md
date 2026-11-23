@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.0.6
+
+- **SKSE now just works.** If the Script Extender is installed, the game always starts through it. The mod manager only ever gets the right build for your game (SKSE 2.3.1 for Skyrim 1.7.104), never the SE, GOG or VR one, and SKSE you copied in yourself is recognised however the zip was laid out. If something's wrong (SKSE built for a different Skyrim, or mods that need SKSE when it isn't there), the launcher tells you what and how to fix it.
+- **No more frozen screen when a mod fails to load.** SKSE asks "Exit game?" in a Windows box that can't be pressed on the Thor, so the game sat at 0 FPS. The app now answers it and keeps playing without that mod, and the bottom screen says which mod didn't load and why (not updated for 1.7.104, needs a newer Address Library, missing a file…).
+- **SSE Engine Fixes:** if its Part 2 is missing, the app notices and downloads it for you.
+- **Mods pick the right file for your game.** Automatic downloads take the file made for Skyrim 1.7.104, even when Nexus lists an older-Skyrim file first. In the file list, the right one is marked RECOMMENDED FOR YOUR GAME, and files for older Skyrim, VR or GOG say so.
+- **360p and 480p, with AMD FSR** (Resolution and the new Upscaling setting). For heavy shader and weather mods: Skyrim renders smaller and FSR enlarges and sharpens it for the screen. Upscaling on Auto uses FSR below 720p.
+- **Easier bug reports.** When something goes wrong, the message has a SEND REPORT button. Type what happened on the bottom screen and GitHub opens with the problem already filled in, logs included. Report a Problem works the same way.
+- **Controller not working in game** (#14): the game now takes the controller back if the bottom screen held on to it at launch.
+- Translations for the new text.
+
 ## 1.0.5
 
 - **Fixed the bottom screen staying on "Load a save to begin" while playing** (#13). On a fresh install, the app's `SkyrimAYN` folder (where the game tells the companion what's happening) could end up in the app's own storage, where your mods live, instead of in your Skyrim folder, so the companion never saw the game. 1.0.5 moves it back the first time it opens; nothing to do.

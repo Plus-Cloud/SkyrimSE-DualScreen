@@ -335,8 +335,10 @@ object ModManager {
                     }
                     // The Script Extender itself (from its official Nexus page) installs its loader and DLL into the game folder.
                     // By the Nexus id in the file name too: an archive installed from a file, or reinstalled later, has no download record.
+                    // And by its contents: a renamed archive (browser downloads, re-zips) would otherwise lose the loader
+                    // and DLL to protectedRoot below and "install" with SKSE still not running.
                     val isSkse = nexusMeta[archive.name]?.modId == SKSE_NEXUS_ID || archive.name.startsWith("skse64_", true) ||
-                        parseNexusName(archive.name).third == SKSE_NEXUS_ID
+                        parseNexusName(archive.name).third == SKSE_NEXUS_ID || isSkseArchive(staging)
                     val files = mapArchive(staging, isSkse)
                     if (files.isEmpty()) throw IOException("The archive is empty")
                     deploy(game, id, name, version, archive.name, files, move = true)
@@ -435,6 +437,10 @@ object ModManager {
     private fun target(paths: ModOverlay.Paths, rel: String) = paths[if (rel.startsWith(ROOT)) rel.removePrefix(ROOT) else "Data/$rel"]
     /** Backup path for [rel] (no angle brackets: shared storage doesn't allow them). */
     private fun backupRel(rel: String) = if (rel.startsWith(ROOT)) "_root_/" + rel.removePrefix(ROOT) else rel
+
+    /** The Script Extender itself: its loader, within the first few folder levels of the unpacked archive. */
+    internal fun isSkseArchive(staging: File) =
+        staging.walkTopDown().maxDepth(4).any { it.isFile && it.name.equals("skse64_loader.exe", true) }
 
     /**
      * Maps an unpacked archive to install paths. Data content goes to Data; a "Root" folder (the MO2/Vortex
@@ -543,6 +549,8 @@ object ModManager {
         LoadOrder.save(appContext)
         _notice.value = "${meta?.name ?: name} installed" + if (plugins.isNotEmpty()) " · ${plugins.size} plugin${if (plugins.size > 1) "s" else ""} enabled" else ""
         Timber.i("SkyrimAYN: installed $id (${placed.size} files, ${plugins.size} plugins)")
+        offerSkseIfNeeded(game)
+        offerEngineFixesPart2(game)
     }
 
     private fun moveFile(from: File, to: File) {
@@ -671,16 +679,69 @@ object ModManager {
      * Setup: fetch SKSE 2.3.1 (the build for Skyrim 1.7.104) from its official Nexus page and install it.
      * Premium accounts download straight away; free accounts get Nexus's one SLOW DOWNLOAD confirmation.
      */
+    /**
+     * The one Script Extender file that fits Skyrim 1.7.104. SKSE's Nexus page also carries builds for 1.5.97 and
+     * GOG, and its "primary" file isn't always ours, so every path that fetches SKSE picks with this.
+     */
+    internal fun skseFile(all: List<NexusApi.ModFile>): NexusApi.ModFile? {
+        val files = all.filter { it.current && !it.fileName.contains("gog", true) && !it.name.contains("gog", true) }
+        return files.firstOrNull { it.fileName.contains("2_03_01") || it.version.trim() == "2.3.1" || it.version.contains("2.03.01") }
+            ?: files.filter { it.category == "MAIN" && GameVersionFit.of(it) != GameVersionFit.Fit.OTHER_GAME }.let { GameVersionFit.bestFile(it) }
+    }
+
+    /** Asked once per app run: a mod needing SKSE was installed without it. */
+    @Volatile private var skseOffered = false
+
+    /** After an install: SKSE plugins in Data but no (matching) SKSE in the game folder → fetch the right one. */
+    private fun offerSkseIfNeeded(game: File) {
+        val problem = SkyrimEngine.skseProblem(game.path) ?: return
+        if (skseOffered || onItsWay(SKSE_NEXUS_ID)) return
+        skseOffered = true
+        if (apiKey() == null) { _notice.value = "$problem Sign in to Nexus Mods and the app will get the right one."; return }
+        _notice.value = "$problem Getting the Script Extender (SKSE 2.3.1)…"
+        getSkse()
+    }
+
+    /** SSE Engine Fixes: Part 1 (the SKSE plugin) and Part 2 (the preloader next to SkyrimSE.exe) are separate files. */
+    const val ENGINE_FIXES_NEXUS_ID = 17230
+    @Volatile private var engineFixesOffered = false
+
+    /** Engine Fixes' plugin is in, but not its Part 2: Skyrim shows an Engine Fixes error at start. */
+    internal fun engineFixesPart2Missing(game: File): Boolean {
+        val paths = ModOverlay.Paths(game)
+        return paths["Data/SKSE/Plugins/EngineFixes.dll"].isFile && !paths["d3dx9_42.dll"].isFile
+    }
+
+    /** After an install: Engine Fixes Part 1 without Part 2 → fetch Part 2 (the file for our game) too. */
+    private fun offerEngineFixesPart2(game: File) {
+        if (!engineFixesPart2Missing(game) || engineFixesOffered || onItsWay(ENGINE_FIXES_NEXUS_ID)) return
+        engineFixesOffered = true
+        if (apiKey() == null) { _notice.value = "SSE Engine Fixes also needs its Part 2. Sign in to Nexus Mods and the app will get it."; return }
+        _notice.value = "SSE Engine Fixes also needs its Part 2: getting it…"
+        scope.launch {
+            try {
+                val mod = NexusApi.mod(ENGINE_FIXES_NEXUS_ID).first
+                val part2 = NexusApi.files(ENGINE_FIXES_NEXUS_ID).filter { "part 2" in "${it.name} ${it.fileName}".lowercase().replace('_', ' ') }
+                val file = GameVersionFit.bestFile(part2) ?: run { _notice.value = "Couldn't find Engine Fixes Part 2 on Nexus"; return@launch }
+                withContext(Dispatchers.Main) { enqueue(mod, file) }
+            } catch (e: Exception) {
+                _notice.value = "Couldn't reach Nexus Mods: ${e.message}"
+            }
+        }
+    }
+
+    /** A file of this Nexus mod is queued or downloading already. */
+    private fun onItsWay(modId: Int) = modId in queuedMods() ||
+        _downloads.value.any { it.state == DlState.DOWNLOADING && downloadModId(it) == modId }
+
     fun getSkse() {
         if (apiKey() == null) return
         scope.launch {
             try {
                 val mod = NexusApi.mod(SKSE_NEXUS_ID).first
-                val files = NexusApi.files(SKSE_NEXUS_ID).filter { it.current }
-                val file = files.firstOrNull { it.fileName.contains("2_03_01") || it.version.trim() == "2.3.1" || it.version.contains("2.03.01") }
-                    ?: files.firstOrNull { it.category == "MAIN" && !it.fileName.contains("gog", true) }
+                val file = skseFile(NexusApi.files(SKSE_NEXUS_ID))
                     ?: run { _notice.value = "Couldn't find the Script Extender file on Nexus"; return@launch }
-                withContext(Dispatchers.Main) { get(mod, file) }
+                withContext(Dispatchers.Main) { enqueue(mod, file) }
             } catch (e: Exception) {
                 _notice.value = "Couldn't reach Nexus Mods: ${e.message}"
             }
@@ -719,7 +780,7 @@ object ModManager {
                 try {
                     val (m, _) = NexusApi.mod(r.modId)
                     val files = NexusApi.files(r.modId)
-                    val f = files.firstOrNull { it.category == "MAIN" && it.primary } ?: files.firstOrNull { it.category == "MAIN" } ?: files.firstOrNull { it.current }
+                    val f = if (r.modId == SKSE_NEXUS_ID) skseFile(files) else GameVersionFit.bestFile(files)
                     if (f != null) enqueue(m, f) else _notice.value = "${r.name} has no file to download"
                 } catch (e: Exception) {
                     _notice.value = "Couldn't get ${r.name}: ${e.message}"
@@ -796,8 +857,9 @@ object ModManager {
                     val mod = NexusApi.mod(e.nexusId).first
                     val files = NexusApi.files(e.nexusId)
                     // The exact file the list was made with; if the author removed it, their current main file.
-                    val file = files.firstOrNull { it.fileId == e.fileId }
-                        ?: files.firstOrNull { it.category == "MAIN" && it.primary } ?: files.firstOrNull { it.category == "MAIN" } ?: files.firstOrNull { it.current }
+                    val file = (if (e.nexusId == SKSE_NEXUS_ID) skseFile(files) else null)
+                        ?: files.firstOrNull { it.fileId == e.fileId }
+                        ?: GameVersionFit.bestFile(files)
                     if (file == null) { _notice.value = "${e.name} has no file to download"; continue }
                     enqueue(mod, file)
                     if (!opened && _account.value?.premium != true) { opened = true; withContext(Dispatchers.Main) { openNexus() } }

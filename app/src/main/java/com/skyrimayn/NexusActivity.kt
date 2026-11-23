@@ -558,9 +558,10 @@ private fun ModPage(modId: Int, onOpen: (Int) -> Unit, onBack: () -> Unit, onNee
                 }
             } else if (fs == null) LinearProgressIndicator(color = Sky.Text, trackColor = Sky.Faint, modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp))
             else {
-                val shown = fs.filter { it.current || showOld }
+                val shown = GameVersionFit.sorted(fs.filter { it.current || showOld })
+                val best = GameVersionFit.bestFile(fs)
                 if (shown.isEmpty()) SkyText("No current files", 13.sp, Sky.Dim, 0.5.sp)
-                shown.forEach { f -> FileRow(m, f, onNeedSignIn) }
+                shown.forEach { f -> FileRow(m, f, onNeedSignIn, recommended = f == best && shown.size > 1) }
                 if (fs.any { !it.current }) SkyText(if (showOld) "HIDE OLDER FILES" else "SHOW OLDER FILES", 11.sp, Sky.Dim, 2.sp,
                     modifier = Modifier.clickable { showOld = !showOld }.padding(vertical = 8.dp))
             }
@@ -569,8 +570,10 @@ private fun ModPage(modId: Int, onOpen: (Int) -> Unit, onBack: () -> Unit, onNee
 }
 
 @Composable
-private fun FileRow(m: NexusApi.Mod, f: NexusApi.ModFile, onNeedSignIn: () -> Unit) {
+private fun FileRow(m: NexusApi.Mod, f: NexusApi.ModFile, onNeedSignIn: () -> Unit, recommended: Boolean = false) {
     val main = f.category == "MAIN"
+    // Files for 1.5.97 / VR / GOG load into the game and break it (or do nothing): say so before anyone downloads one.
+    val otherGame = GameVersionFit.of(f) == GameVersionFit.Fit.OTHER_GAME
     Column(
         Modifier.fillMaxWidth().padding(vertical = 4.dp)
             .background(if (main && f.primary) Color(0x14FFFFFF) else Color.Transparent)
@@ -578,7 +581,9 @@ private fun FileRow(m: NexusApi.Mod, f: NexusApi.ModFile, onNeedSignIn: () -> Un
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                SkyText(f.name, 15.sp, Sky.Text, 0.3.sp, maxLines = 2)
+                if (recommended) SkyText("RECOMMENDED FOR YOUR GAME", 10.sp, Sky.Text, 2.sp)
+                if (otherGame) SkyText("NOT FOR YOUR GAME (OLDER SKYRIM, VR OR GOG)", 10.sp, Sky.Health, 2.sp)
+                SkyText(f.name, 15.sp, if (otherGame) Sky.Dim else Sky.Text, 0.3.sp, maxLines = 2)
                 SkyText(listOf(f.category.replace('_', ' '), "v${f.version}", size(f.sizeBytes)).joinToString("   ·   "), 10.sp, Sky.Dim, 1.5.sp)
             }
             val downloads by ModManager.downloads.collectAsState()
@@ -587,7 +592,8 @@ private fun FileRow(m: NexusApi.Mod, f: NexusApi.ModFile, onNeedSignIn: () -> Un
             when (state) {
                 ModManager.FileState.INSTALLED -> SkyText("INSTALLED", 13.sp, Sky.Dim, 2.sp, modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp))
                 ModManager.FileState.DOWNLOADING -> SkyText("DOWNLOADING…", 13.sp, Sky.Dim, 2.sp, modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp))
-                else -> SkyText(if (state == ModManager.FileState.DOWNLOADED) "INSTALL ›" else "DOWNLOAD ›", 13.sp, Sky.Text, 2.sp,
+                else -> SkyText(if (state == ModManager.FileState.DOWNLOADED) "INSTALL ›" else if (otherGame) "DOWNLOAD ANYWAY" else "DOWNLOAD ›", 13.sp,
+                    if (otherGame) Sky.Dim else Sky.Text, 2.sp,
                     modifier = Modifier.clickable { if (ModManager.apiKey() == null) onNeedSignIn() else ModManager.request(m, f) }
                         .border(1.dp, Sky.Line).padding(horizontal = 10.dp, vertical = 7.dp))
             }
