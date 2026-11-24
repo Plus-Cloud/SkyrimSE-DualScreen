@@ -32,12 +32,12 @@ setup.files_body1 = 플레이하려면 이 앱이 기기 저장소에서 내 Sky
 setup.files_body2 = 다음 화면에서 파일 접근을 허용해 주세요. Skyrim 폴더, 저장 파일, 설치한 모드에만 사용됩니다.
 setup.allow_access = 접근 허용
 setup.folder_title = Skyrim 폴더 선택
-setup.folder_body = PC의 Steam 라이브러리(steamapps/common)에 있는 "Skyrim Special Edition" 폴더를 Thor로 복사한 뒤 여기서 선택하세요. SkyrimSE.exe와 Data 폴더가 들어 있는 폴더입니다. 아무것도 다운로드하지 않습니다. 내가 소유한 게임으로 플레이합니다.
+setup.folder_body = "Skyrim Special Edition" 폴더를 선택하세요(SkyrimSE.exe와 Data 폴더가 있는 폴더). 가장 쉬운 방법은 PC의 Steam 라이브러리(steamapps/common)에서 Thor로 복사하는 것입니다. GameNative나 GameHub 같은 Steam 앱으로 Thor에 받은 사본도 열 수 있는 폴더에 있다면 됩니다. 어느 쪽이든 내가 소유한 사본으로 플레이합니다.
 setup.select_folder = 폴더 선택
 setup.folder_unreadable = 해당 위치를 읽을 수 없습니다. 내부 저장소나 SD 카드의 폴더를 선택해 보세요.
 setup.folder_cant_open = 그 폴더를 열 수 없습니다.
 setup.folder_no_exe = 여기에는 SkyrimSE.exe가 없습니다. SkyrimSE.exe와 Data가 들어 있는 폴더를 선택하세요.
-setup.folder_wrong_version = 이 게임은 Skyrim SE {}입니다. SkyrimSE-DualScreen에는 현재 Steam 버전인 {}가 필요합니다. PC의 Steam에서 Skyrim을 업데이트한 뒤 폴더를 다시 복사하세요.
+setup.folder_wrong_version = 이 게임은 Skyrim SE {}입니다. SkyrimSE-DualScreen에는 현재 Steam 버전인 {}이(가) 필요합니다. Steam으로 Skyrim을 업데이트한 뒤(PC 또는 다운로드에 사용한 앱에서) 폴더를 다시 선택하세요.
 setup.finish_on_top = 위쪽 화면에서 설정을 마무리하세요
 
 [steam]
@@ -586,3 +586,14 @@ v106.27 = 일부 모드에 Script Extender(SKSE)가 필요하지만 설치되어
 v106.28 = SSE Engine Fixes의 파트 2가 없어 Skyrim에서 Engine Fixes 오류가 표시됩니다. Engine Fixes 페이지에서 파트 2를 설치하세요.
 v106.29 = SSE Engine Fixes에는 파트 2도 필요합니다: 받는 중…
 v106.30 = SSE Engine Fixes에는 파트 2도 필요합니다. Nexus Mods에 로그인하면 앱이 받아옵니다.
+
+[v107]
+v107.1 = SSE Engine Fixes는 이전 Skyrim용이라 꺼 두었고, Skyrim은 그대로 시작됩니다. 모드에서 제거한 뒤 '내 게임에 추천' 표시가 있는 파일을 설치하세요.
+v107.2 = 이전 Skyrim용이라 불러올 수 없습니다: {}. 모드에서 제거한 뒤 '내 게임에 추천' 표시가 있는 파일을 설치하세요.
+v107.3 = {}은(는) 이전 Skyrim용입니다: '내 게임에 추천' 파일을 받으세요
+v107.4 = 둘 다 받기 ›
+v107.5 = Engine Fixes 파트 2
+v107.6 = 같은 페이지의 두 번째 파일입니다. 이 파일 없이는 Engine Fixes가 작동하지 않습니다.
+v107.7 = Nexus 웹사이트에 다시 로그인해야 합니다(몇 주마다 요청합니다). 아래에서 로그인하면 다운로드가 자동으로 이어집니다.
+v107.8 = {}이(가) 기다리고 있습니다  ·  탭하여 다운로드 ›
+v107.9 = 세이브를 불러오면 표시됩니다.

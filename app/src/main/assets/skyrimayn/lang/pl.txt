@@ -32,12 +32,12 @@ setup.files_body1 = Aby grać, ta aplikacja musi odczytać twoją kopię Skyrim 
 setup.files_body2 = Zezwól na dostęp do plików na następnym ekranie. Służy on tylko do folderu Skyrim, jego zapisów i instalowanych modów.
 setup.allow_access = Zezwól na dostęp
 setup.folder_title = Wybierz folder Skyrim
-setup.folder_body = Skopiuj folder „Skyrim Special Edition" z biblioteki Steam na komputerze (steamapps/common) na Thora i wybierz go tutaj. To ten z plikiem SkyrimSE.exe i folderem Data. Nic nie jest pobierane: grasz w kopię, którą posiadasz.
+setup.folder_body = Wybierz folder „Skyrim Special Edition”: ten z SkyrimSE.exe i folderem Data. Najprościej skopiować go z biblioteki Steam na PC (steamapps/common) na Thora. Kopia pobrana na Thorze aplikacją Steam, taką jak GameNative lub GameHub, też zadziała, jeśli jest w folderze, który możesz otworzyć. Tak czy inaczej grasz w swoją kopię.
 setup.select_folder = Wybierz folder
 setup.folder_unreadable = Nie można odczytać tej lokalizacji. Spróbuj folderu w pamięci wewnętrznej lub na karcie SD.
 setup.folder_cant_open = Nie można otworzyć tego folderu.
 setup.folder_no_exe = Nie ma tu pliku SkyrimSE.exe. Wybierz folder, który zawiera SkyrimSE.exe i Data.
-setup.folder_wrong_version = To jest Skyrim SE {}. SkyrimSE-DualScreen wymaga wersji {}, aktualnej wersji ze Steam: zaktualizuj Skyrim w Steam na komputerze i skopiuj folder ponownie.
+setup.folder_wrong_version = To jest Skyrim SE {}. SkyrimSE-DualScreen wymaga {}, aktualnej wersji ze Steam: zaktualizuj Skyrim przez Steam (na PC albo w aplikacji, którą go pobrałeś), a potem wybierz folder ponownie.
 setup.finish_on_top = Dokończ konfigurację na górnym ekranie
 
 [steam]
@@ -586,3 +586,14 @@ v106.27 = Niektóre twoje mody potrzebują Script Extendera (SKSE), który nie j
 v106.28 = W SSE Engine Fixes brakuje części 2, więc Skyrim pokaże błąd Engine Fixes. Zainstaluj część 2 ze strony Engine Fixes.
 v106.29 = SSE Engine Fixes potrzebuje też części 2: pobieranie…
 v106.30 = SSE Engine Fixes potrzebuje też części 2. Zaloguj się do Nexus Mods, a aplikacja ją pobierze.
+
+[v107]
+v107.1 = SSE Engine Fixes jest dla starszego Skyrima, więc został wyłączony, a Skyrim i tak się uruchomi. W Modach odinstaluj go i zainstaluj plik oznaczony ZALECANE DLA TWOJEJ GRY.
+v107.2 = Przeznaczone dla starszego Skyrima, więc nie mogą się wczytać: {}. W Modach odinstaluj je i zainstaluj plik oznaczony ZALECANE DLA TWOJEJ GRY.
+v107.3 = {} jest dla starszego Skyrima: pobierz plik oznaczony ZALECANE DLA TWOJEJ GRY
+v107.4 = POBIERZ OBA ›
+v107.5 = Engine Fixes część 2
+v107.6 = Drugi plik z tej samej strony. Bez niego Engine Fixes nie działa.
+v107.7 = Nexus chce, żebyś zalogował się ponownie na stronie (prosi o to co kilka tygodni). Zaloguj się poniżej, a pobieranie ruszy samo.
+v107.8 = {} CZEKA NA CIEBIE  ·  DOTKNIJ, ABY POBRAĆ ›
+v107.9 = Wczytaj zapis, aby je zobaczyć.

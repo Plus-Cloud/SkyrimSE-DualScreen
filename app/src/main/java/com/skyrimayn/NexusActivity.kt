@@ -190,12 +190,14 @@ private fun RequirementsDialog(p: ModManager.RequirementsPrompt) {
         Column(Modifier.width(560.dp).background(Color(0xFF0B0B0B)).border(1.dp, Sky.Frame).padding(20.dp)) {
             SkyText("${p.mod.name.uppercase()} NEEDS", 18.sp, Sky.Text, 3.sp, maxLines = 2)
             Rule(Modifier.padding(vertical = 8.dp), color = Sky.Faint)
-            p.missing.forEach { r ->
+            val rows = p.missing.map { it.name to it.notes } +
+                listOfNotNull(if (p.part2) "Engine Fixes Part 2" to "The second file on the same page. Engine Fixes doesn't work without it." else null)
+            rows.forEach { (name, notes) ->
                 Row(Modifier.padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
                     DiamondMark(false, Sky.Health, Modifier.size(8.dp)); Spacer(Modifier.width(10.dp))
                     Column {
-                        SkyText(r.name, 16.sp, Sky.Text, 0.3.sp, maxLines = 2)
-                        if (r.notes.isNotBlank()) SkyText(r.notes, 12.sp, Sky.Dim, 0.3.sp, light = true, maxLines = 2)
+                        SkyText(name, 16.sp, Sky.Text, 0.3.sp, maxLines = 2)
+                        if (notes.isNotBlank()) SkyText(notes, 12.sp, Sky.Dim, 0.3.sp, light = true, maxLines = 2)
                     }
                 }
             }
@@ -203,10 +205,13 @@ private fun RequirementsDialog(p: ModManager.RequirementsPrompt) {
                 modifier = Modifier.padding(top = 8.dp))
             Spacer(Modifier.height(14.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                SkyText("GET THEM FIRST ›", 15.sp, Sky.Text, 3.sp, modifier = Modifier.clickable { ModManager.answerRequirements(true) }
+                // Only Engine Fixes' Part 2 to add: there's no "only this mod", both files are the mod.
+                SkyText(if (p.missing.isEmpty()) "GET BOTH ›" else "GET THEM FIRST ›", 15.sp, Sky.Text, 3.sp,
+                    modifier = Modifier.clickable { ModManager.answerRequirements(true) }
                     .border(1.dp, Sky.Line).padding(horizontal = 14.dp, vertical = 9.dp))
                 Spacer(Modifier.width(16.dp))
-                SkyText("ONLY THIS MOD", 13.sp, Sky.Body, 2.sp, modifier = Modifier.clickable { ModManager.answerRequirements(false) }.padding(9.dp))
+                if (p.missing.isNotEmpty())
+                    SkyText("ONLY THIS MOD", 13.sp, Sky.Body, 2.sp, modifier = Modifier.clickable { ModManager.answerRequirements(false) }.padding(9.dp))
                 Spacer(Modifier.weight(1f))
                 SkyText("CANCEL", 13.sp, Sky.Dim, 2.sp, modifier = Modifier.clickable { ModManager.answerRequirements(null) }.padding(9.dp))
             }
@@ -561,7 +566,7 @@ private fun ModPage(modId: Int, onOpen: (Int) -> Unit, onBack: () -> Unit, onNee
                 val shown = GameVersionFit.sorted(fs.filter { it.current || showOld })
                 val best = GameVersionFit.bestFile(fs)
                 if (shown.isEmpty()) SkyText("No current files", 13.sp, Sky.Dim, 0.5.sp)
-                shown.forEach { f -> FileRow(m, f, onNeedSignIn, recommended = f == best && shown.size > 1) }
+                shown.forEach { f -> FileRow(m, f, onNeedSignIn, recommended = f == best && shown.size > 1, all = fs) }
                 if (fs.any { !it.current }) SkyText(if (showOld) "HIDE OLDER FILES" else "SHOW OLDER FILES", 11.sp, Sky.Dim, 2.sp,
                     modifier = Modifier.clickable { showOld = !showOld }.padding(vertical = 8.dp))
             }
@@ -570,10 +575,10 @@ private fun ModPage(modId: Int, onOpen: (Int) -> Unit, onBack: () -> Unit, onNee
 }
 
 @Composable
-private fun FileRow(m: NexusApi.Mod, f: NexusApi.ModFile, onNeedSignIn: () -> Unit, recommended: Boolean = false) {
+private fun FileRow(m: NexusApi.Mod, f: NexusApi.ModFile, onNeedSignIn: () -> Unit, recommended: Boolean = false, all: List<NexusApi.ModFile> = listOf(f)) {
     val main = f.category == "MAIN"
     // Files for 1.5.97 / VR / GOG load into the game and break it (or do nothing): say so before anyone downloads one.
-    val otherGame = GameVersionFit.of(f) == GameVersionFit.Fit.OTHER_GAME
+    val otherGame = GameVersionFit.of(f, all) == GameVersionFit.Fit.OTHER_GAME
     Column(
         Modifier.fillMaxWidth().padding(vertical = 4.dp)
             .background(if (main && f.primary) Color(0x14FFFFFF) else Color.Transparent)
@@ -618,12 +623,17 @@ private fun size(bytes: Long): String = when {
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
 private fun FreeConfirmPanel(c: ModManager.FreeConfirm) {
+    // The app signs in to Nexus's API with your key, but SLOW DOWNLOAD is on Nexus's website, which has its own
+    // login that runs out every few weeks. Say so, instead of a login page under a "one tap" title.
+    var needsLogin by remember(c.mod.modId, c.file.fileId) { mutableStateOf(false) }
     Box(Modifier.fillMaxSize().background(Color(0xE6000000)).clickable(enabled = false) {}, contentAlignment = Alignment.Center) {
         Column(Modifier.fillMaxWidth(0.86f).fillMaxHeight(0.9f).background(Color(0xFF0B0B0B)).border(1.dp, Sky.Frame).padding(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     SkyText("ONE TAP  ·  ${c.file.name.uppercase()}", 15.sp, Sky.Text, 2.sp)
-                    SkyText("Nexus Mods asks free members to press SLOW DOWNLOAD themselves for each file. Everything after that happens here. Premium members never see this.",
+                    if (needsLogin) SkyText("Nexus wants you to log in again on its website (it asks every few weeks). Log in below and the download carries on by itself.",
+                        13.sp, Sky.Text, 0.5.sp, maxLines = 2)
+                    else SkyText("Nexus Mods asks free members to press SLOW DOWNLOAD themselves for each file. Everything after that happens here. Premium members never see this.",
                         12.sp, Sky.Dim, 0.5.sp, light = true, maxLines = 2)
                 }
                 SkyText("CANCEL", 13.sp, Sky.Text, 3.sp, modifier = Modifier.clickable { ModManager.cancelFreeConfirm() }.padding(8.dp))
@@ -641,6 +651,10 @@ private fun FreeConfirmPanel(c: ModManager.FreeConfirm) {
                                 if (request.url.scheme.equals("nxm", true)) ModManager.handleNxm(request.url.toString()) else false
                             // Bring the download button into view so it's the first thing you see.
                             override fun onPageFinished(view: WebView, url: String) {
+                                val login = isNexusLogin(url)
+                                // Logged in again: Nexus may land on its home page, so go back to the file.
+                                if (needsLogin && !login && "file_id=" !in url) { needsLogin = false; view.loadUrl(NexusApi.freeDownloadPage(c.mod.modId, c.file.fileId)); return }
+                                needsLogin = login
                                 view.evaluateJavascript("""(function(){var b=document.getElementById('slowDownloadButton')||Array.from(document.querySelectorAll('button,a')).find(function(e){return /slow download/i.test(e.textContent)});if(b){b.scrollIntoView({block:'center'});}})()""", null)
                             }
                         }
@@ -658,6 +672,13 @@ private fun FreeConfirmPanel(c: ModManager.FreeConfirm) {
     }
 }
 
+/** Nexus's website login (users.nexusmods.com, or a /login page). */
+internal fun isNexusLogin(url: String): Boolean {
+    val u = runCatching { android.net.Uri.parse(url) }.getOrNull() ?: return false
+    val host = u.host.orEmpty().lowercase()
+    return host.startsWith("users.") || host.startsWith("auth.") || u.path.orEmpty().lowercase().let { "/login" in it || "/auth" in it }
+}
+
 // ================================================================ status strip
 
 /** What's downloading / installing, so the player sees their tap did something. */
@@ -668,8 +689,18 @@ internal fun DownloadStrip(everything: Boolean = true) {
     val notice by ModManager.notice.collectAsState()
     val fomod by ModManager.fomod.collectAsState()
     val queued by ModManager.queued.collectAsState()
+    val confirm by ModManager.freeConfirm.collectAsState()
+    val context = androidx.compose.ui.platform.LocalContext.current
     if (everything) LaunchedEffect(notice) { if (notice != null) { delay(3500); ModManager.clearNotice() } }
     val active = downloads.firstOrNull { it.state == ModManager.DlState.DOWNLOADING }
+    // A free-account download waits for SLOW DOWNLOAD on the Nexus screen: from anywhere else, say so and take them there.
+    if (!everything && confirm != null) {
+        Column(Modifier.fillMaxWidth().background(Color.Black).clickable { NexusActivity.open(context) }.padding(horizontal = 18.dp, vertical = 8.dp)) {
+            Rule(color = Sky.Faint)
+            SkyText("${confirm!!.file.name.uppercase()} IS WAITING FOR YOU  ·  TAP TO DOWNLOAD ›", 14.sp, Sky.Text, 1.sp, modifier = Modifier.padding(top = 4.dp))
+        }
+        return
+    }
     val line = when {
         everything && fomod != null -> "${fomod!!.modName.uppercase()}  ·  choose options on the bottom screen"
         everything && busy != null -> "${busy!!.title}  ·  ${busy!!.detail}"

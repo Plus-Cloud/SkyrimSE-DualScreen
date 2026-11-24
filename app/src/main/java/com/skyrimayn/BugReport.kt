@@ -54,6 +54,8 @@ object Problems {
 /** Bundles what's needed to diagnose a problem into a zip in Downloads and opens a GitHub issue for it. Sign-in secrets are removed. */
 object BugReport {
     private const val MAX_LOG_BYTES = 2_000_000
+    private const val MAX_MOD_LOGS = 8
+    private const val MAX_MOD_LOG_BYTES = 300_000
     private const val REPO = "Plus-Cloud/SkyrimSE-DualScreen"
     /** Where the last report was saved, for the notice ("Download/....zip"). */
     var lastSaved: String? = null; private set
@@ -123,8 +125,13 @@ object BugReport {
                     }
                     add("setup.txt", info(ctx, game))
                     add("app-log.txt", appLog())
-                    listOf("SkyrimAYN.log", "skse64.log", "skse64_loader.log", "skse64_steam_loader.log").forEach { n ->
-                        File(skse, n).takeIf { it.isFile }?.let { add(n, it.readBytes().takeLast(MAX_LOG_BYTES).toByteArray().decodeToString()) }
+                    // SKSE's logs, then the ones mods write next to them (EngineFixes.log, po3_Tweaks.log…): those often
+                    // hold the real error. Newest first, a few at most.
+                    val main = listOf("SkyrimAYN.log", "skse64.log", "skse64_loader.log", "skse64_steam_loader.log")
+                    val mods = skse.listFiles().orEmpty().filter { it.isFile && it.name.endsWith(".log", true) && it.name !in main }
+                        .sortedByDescending { it.lastModified() }.take(MAX_MOD_LOGS)
+                    (main.map { File(skse, it) } + mods).filter { it.isFile }.forEach { f ->
+                        add(if (f.name in main) f.name else "mod-logs/${f.name}", f.readBytes().takeLast(if (f.name in main) MAX_LOG_BYTES else MAX_MOD_LOG_BYTES).toByteArray().decodeToString())
                     }
                 }
                 // A copy beside the mods, so a report can be fetched from the Thor without the share sheet.

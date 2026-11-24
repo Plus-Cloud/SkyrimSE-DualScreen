@@ -114,7 +114,8 @@ object NotificationFeed {
             val code = codeText.toLongOrNull() ?: 0L
             val s = state.lowercase()
             when {
-                s == "no version data" -> null   // logged but not an error
+                // No SKSEPlugin_Version: a build for Skyrim 1.5.97 or older, which SKSE skips.
+                s == "no version data" -> "$dll is made for an older Skyrim: get the file marked RECOMMENDED FOR YOUR GAME"
                 dll.equals("EngineFixes.dll", true) && code == 126L ->
                     "SSE Engine Fixes is missing its Part 2: the files that go next to SkyrimSE.exe"
                 "address library" in s -> "$dll needs the newest Address Library for SKSE Plugins (All in one, Anniversary Edition)"

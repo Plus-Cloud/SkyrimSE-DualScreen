@@ -60,10 +60,13 @@ object SkyrimEngine {
     /** [existing] overrides plus n,b for our dinput8 and any preloader DLL found in [gameDir] (replacing earlier entries). */
     internal fun dllOverrides(existing: String, gameDir: File?): String {
         val present = gameDir?.listFiles()?.map { it.name.lowercase() }?.toSet().orEmpty()
-        val native = listOf("dinput8") + PRELOADER_DLLS.filter { "$it.dll" in present }
+        // An old-Skyrim EngineFixes.dll would be loaded by Engine Fixes' preloader and quit Skyrim at start:
+        // use Wine's own d3dx9_42 instead, so the preloader stays out and SKSE just skips the old plugin.
+        val skipped = if (gameDir != null && SksePlugins.engineFixesOld(gameDir)) setOf("d3dx9_42") else emptySet()
+        val native = listOf("dinput8") + PRELOADER_DLLS.filter { "$it.dll" in present && it !in skipped }
         return (existing.split(';').map { it.trim() }
-            .filter { o -> o.isNotEmpty() && native.none { o.lowercase().startsWith("$it=") } } +
-            native.map { "$it=n,b" }).joinToString(";")
+            .filter { o -> o.isNotEmpty() && (native + skipped).none { o.lowercase().startsWith("$it=") } } +
+            native.map { "$it=n,b" } + skipped.map { "$it=b" }).joinToString(";")
     }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -541,6 +544,13 @@ object SkyrimEngine {
         ModOverlay.activeDir()?.takeIf { ModManager.engineFixesPart2Missing(File(it)) }?.let {
             val m = "SSE Engine Fixes is missing its Part 2, so Skyrim will show an Engine Fixes error. Install Part 2 from the Engine Fixes page."
             ModManager.postNotice(m); Problems.record("Engine Fixes Part 2 missing", m)
+        }
+        ModOverlay.activeDir()?.let(::File)?.let { dir ->
+            SksePlugins.restore(dir)
+            val old = SksePlugins.oldBuilds(dir)
+            // Hidden from SKSE for this launch: an old build can quit Skyrim at start (Engine Fixes 7.0.20, #15).
+            SksePlugins.switchOff(dir, old)
+            SksePlugins.problem(old)?.let { ModManager.postNotice(it); Problems.record("Mods for an older Skyrim", it) }
         }
         Timber.i("SkyrimAYN: launching ${if (skse) "through SKSE" else "without SKSE"}")
         if (offlineLaunch()) {

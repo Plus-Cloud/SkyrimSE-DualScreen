@@ -11,6 +11,29 @@ import java.util.Locale
 object GameVersionFit {
     enum class Fit { FITS, OTHER_GAME, UNKNOWN }
 
+    /**
+     * Skyrim 1.7.99+ changed the Address Library format, so a file named for 1.7 is the one to take over a
+     * "1.6.1170 and later" file, even when it's posted as a beta or optional file (SSE Engine Fixes: its main file
+     * covers 1.5.97 and 1.6.1170 only, and 1.7 needs the separate 7.0.21 beta).
+     */
+    private val newest = Regex("\\b1\\.7(\\.\\d+|\\.x)?\\b")
+    fun namesNewest(f: NexusApi.ModFile) = newest.containsMatchIn("${f.name} ${f.fileName}".lowercase(Locale.US).replace('_', ' '))
+    private val older = Regex("\\b1\\.[56]\\.\\d+")
+    /** "Part 2"-style files are a mod's other half (Engine Fixes' preloader works on every version), not an older build. */
+    private val otherPart = Regex("\\bpart ?\\d\\b")
+
+    /**
+     * [of], among the mod's other files: when one is named for Skyrim 1.7, a file that only names 1.5/1.6 versions
+     * ("Supports SE 1.5.97 and AE 1.6.1170+") is for an older Skyrim too, even though it says "AE".
+     */
+    fun of(f: NexusApi.ModFile, all: List<NexusApi.ModFile>): Fit {
+        val own = of(f)
+        if (namesNewest(f) || all.none { it !== f && namesNewest(it) && of(it) == Fit.FITS }) return own
+        val text = "${f.name} ${f.fileName} ${f.description}".lowercase(Locale.US).replace('_', ' ')
+        if (otherPart.containsMatchIn("${f.name} ${f.fileName}".lowercase(Locale.US).replace('_', ' '))) return own
+        return if (older.containsMatchIn(text) && !newest.containsMatchIn(text)) Fit.OTHER_GAME else own
+    }
+
     private val other = listOf(
         Regex("1\\.5\\.\\d+"), Regex("\\b1\\.5\\b"), Regex("\\bvr\\b"), Regex("skyrim ?vr"), Regex("\\bgog\\b"),
         Regex("\\(se\\)"), Regex("\\(special edition\\)"), Regex("\\bse only\\b"), Regex("special edition only"),
@@ -45,6 +68,9 @@ object GameVersionFit {
      */
     fun bestFile(all: List<NexusApi.ModFile>): NexusApi.ModFile? {
         val current = all.filter { it.current }.ifEmpty { all }
+        current.filter { namesNewest(it) && of(it) == Fit.FITS }.let { n ->
+            if (n.isNotEmpty()) return n.firstOrNull { it.category == "MAIN" } ?: n.maxByOrNull { it.date }
+        }
         val usable = current.filter { of(it) != Fit.OTHER_GAME }.ifEmpty { current }
         val main = usable.filter { it.category == "MAIN" }.ifEmpty { usable }
         return main.firstOrNull { of(it) == Fit.FITS && it.primary }
@@ -56,6 +82,6 @@ object GameVersionFit {
     /** The mod page's order: the recommended file first, files for other games last. */
     fun sorted(all: List<NexusApi.ModFile>): List<NexusApi.ModFile> {
         val best = bestFile(all)
-        return all.sortedWith(compareBy({ it != best }, { of(it) == Fit.OTHER_GAME }, { it.category != "MAIN" }))
+        return all.sortedWith(compareBy({ it != best }, { of(it, all) == Fit.OTHER_GAME }, { it.category != "MAIN" }))
     }
 }

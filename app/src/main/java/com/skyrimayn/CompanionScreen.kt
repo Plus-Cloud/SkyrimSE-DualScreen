@@ -1199,7 +1199,8 @@ private fun InGameSettings(onClose: () -> Unit, onNotice: (String) -> Unit) {
                 // Proof your installs worked: what the game itself loaded. (Skyrim's own menu only lists Creations.)
                 val loaded = player?.loadedMods.orEmpty()
                 SectionHeader("PLUGINS LOADED BY THE GAME (${loaded.size})")
-                if (loaded.isEmpty()) SkyText("None. Install mods from the launcher's Mod Manager.", 13.sp, Sky.Faint, 0.5.sp, light = true,
+                // The list comes from the loaded save: at the main menu there's nothing yet, which isn't "no mods".
+                if (loaded.isEmpty()) SkyText(if (player == null) "Load a save to see them." else "None. Install mods from the launcher's Mod Manager.", 13.sp, Sky.Faint, 0.5.sp, light = true,
                     modifier = Modifier.padding(start = 6.dp, top = 4.dp))
                 loaded.forEach { SkyText(it, 14.sp, Sky.Body, 0.3.sp, modifier = Modifier.padding(start = 6.dp, top = 3.dp)) }
                 Spacer(Modifier.height(12.dp))

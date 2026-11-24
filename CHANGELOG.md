@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.0.7
+
+- **SSE Engine Fixes picks the right file** (#15). Its main file only goes up to Skyrim 1.6.1170, and on 1.7.104 Skyrim quit at start with "failed to find offset for address library id". The app now takes the 7.0.21 beta made for Skyrim 1.7 and marks it RECOMMENDED FOR YOUR GAME. The same goes for any mod with a file named for Skyrim 1.7, even when it's posted as a beta or optional file.
+- **Engine Fixes asks for both its files up front.** Engine Fixes comes as two files on one Nexus page, and it doesn't work without the second (Part 2). Download it and the app tells you it needs Part 2 too, with GET BOTH, and fetches the two one after the other.
+- **Getting the right file of a mod you installed from a file now works.** A mod installed from an archive used to count as "already installed" for every file on its Nexus page, so you couldn't download the version for your game from there.
+- **Files for an older Skyrim are marked on the mod page.** When a mod has a file made for Skyrim 1.7, its files for 1.5.97 or 1.6.1170 say NOT FOR YOUR GAME, even when they're labelled "AE".
+- **Mods made for an older Skyrim are caught.** The app reads every Script Extender plugin, right after you install it and again before Play, and tells you which ones are for an older Skyrim and what to install instead.
+- **An old Engine Fixes no longer stops Skyrim from starting.** If you already have the wrong one, Play now tells you so and switches it off for that launch, and Skyrim starts without it. Install the RECOMMENDED file and it's back on.
+- **Downloads waiting for you are easy to find.** On a free Nexus account, a file waits for you to press SLOW DOWNLOAD. The Mod Manager now says which file is waiting, and one tap takes you there.
+- **Nexus asking you to log in again is explained.** Nexus's website logs you out every few weeks, separately from the app's sign-in. The download box now says so, and after you log in the download carries on by itself.
+- **The Skyrim version is checked at every Play**, not only at setup. If SkyrimSE.exe in your folder is no longer 1.7.104 (an older copy, or a new Bethesda patch copied over), the launcher says so instead of starting a game that can't work.
+- **Setup says where Skyrim can come from:** copied from your PC (easiest), or downloaded on the Thor with a Steam app such as GameNative or GameHub, as long as it's in a folder you can open.
+- **The companion's plugin list says "Load a save to see them"** at the main menu, instead of "None".
+- **Bug reports include the logs mods write** (like EngineFixes.log), which often hold the actual error.
+
 ## 1.0.6
 
 - **SKSE now just works.** If the Script Extender is installed, the game always starts through it. The mod manager only ever gets the right build for your game (SKSE 2.3.1 for Skyrim 1.7.104), never the SE, GOG or VR one, and SKSE you copied in yourself is recognised however the zip was laid out. If something's wrong (SKSE built for a different Skyrim, or mods that need SKSE when it isn't there), the launcher tells you what and how to fix it.

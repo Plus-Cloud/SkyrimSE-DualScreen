@@ -32,12 +32,12 @@ setup.files_body1 = Pour jouer, cette application doit lire votre copie de Skyri
 setup.files_body2 = Autorisez l'accès aux fichiers sur l'écran suivant. Il ne sert qu'à votre dossier Skyrim, à ses sauvegardes et aux mods que vous installez.
 setup.allow_access = Autoriser l'accès
 setup.folder_title = Choisissez votre dossier Skyrim
-setup.folder_body = Copiez le dossier « Skyrim Special Edition » de la bibliothèque Steam de votre PC (steamapps/common) sur le Thor, puis choisissez-le ici. C'est celui qui contient SkyrimSE.exe et le dossier Data. Rien n'est téléchargé : vous jouez à la copie que vous possédez.
+setup.folder_body = Choisis ton dossier « Skyrim Special Edition » : celui qui contient SkyrimSE.exe et le dossier Data. Le plus simple est de le copier depuis la bibliothèque Steam de ton PC (steamapps/common) vers la Thor. Une copie téléchargée sur la Thor avec une appli Steam comme GameNative ou GameHub marche aussi, si elle est dans un dossier que tu peux ouvrir. Dans tous les cas, tu joues à la copie que tu possèdes.
 setup.select_folder = Choisir le dossier
 setup.folder_unreadable = Impossible de lire cet emplacement. Essayez un dossier du stockage interne ou de la carte SD.
 setup.folder_cant_open = Impossible d'ouvrir ce dossier.
 setup.folder_no_exe = Pas de SkyrimSE.exe ici. Choisissez le dossier qui contient SkyrimSE.exe et Data.
-setup.folder_wrong_version = Ceci est Skyrim SE {}. SkyrimSE-DualScreen a besoin de {}, la version Steam actuelle : mettez Skyrim à jour dans Steam sur votre PC, puis recopiez le dossier.
+setup.folder_wrong_version = Ceci est Skyrim SE {}. SkyrimSE-DualScreen a besoin de {}, la version Steam actuelle : mets Skyrim à jour via Steam (sur ton PC, ou dans l'appli avec laquelle tu l'as téléchargé), puis choisis à nouveau le dossier.
 setup.finish_on_top = Terminez la configuration sur l'écran du haut
 
 [steam]
@@ -586,3 +586,14 @@ v106.27 = Certains de tes mods ont besoin du Script Extender (SKSE), qui n'est p
 v106.28 = Il manque la partie 2 de SSE Engine Fixes, donc Skyrim affichera une erreur Engine Fixes. Installe la partie 2 depuis la page d'Engine Fixes.
 v106.29 = SSE Engine Fixes a aussi besoin de sa partie 2 : téléchargement…
 v106.30 = SSE Engine Fixes a aussi besoin de sa partie 2. Connecte-toi à Nexus Mods et l'appli la téléchargera.
+
+[v107]
+v107.1 = SSE Engine Fixes est fait pour un Skyrim plus ancien : il est donc désactivé et Skyrim démarre quand même. Dans Mods, désinstalle-le et installe le fichier marqué RECOMMANDÉ POUR TON JEU.
+v107.2 = Faits pour un Skyrim plus ancien, ils ne peuvent pas se charger : {}. Dans Mods, désinstalle-les et installe le fichier marqué RECOMMANDÉ POUR TON JEU.
+v107.3 = {} est fait pour un Skyrim plus ancien : prends le fichier marqué RECOMMANDÉ POUR TON JEU
+v107.4 = PRENDRE LES DEUX ›
+v107.5 = Engine Fixes partie 2
+v107.6 = Le deuxième fichier de la même page. Engine Fixes ne fonctionne pas sans lui.
+v107.7 = Nexus veut que tu te reconnectes sur son site (il le demande toutes les quelques semaines). Connecte-toi ci-dessous et le téléchargement reprend tout seul.
+v107.8 = {} T'ATTEND  ·  TOUCHE POUR TÉLÉCHARGER ›
+v107.9 = Charge une sauvegarde pour les voir.

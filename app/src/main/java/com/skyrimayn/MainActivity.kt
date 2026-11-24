@@ -206,6 +206,10 @@ class MainActivity : ComponentActivity() {
         launching = true
         lifecycleScope.launch {
             try {
+                // The player's folder, not the mods mirror: SkyrimSE.exe lives there.
+                GameFolder.dir.value?.let { GameFolder.wrongVersion(it) }?.let {
+                    playHint = it; Problems.record("Wrong Skyrim version", it); return@launch
+                }
                 // Still preparing the engine (first install): wait, showing where it's at.
                 val prepJob = SkyrimEngine.prepareEngine(this@MainActivity)
                 if (!prepJob.isCompleted) {
@@ -391,8 +395,10 @@ internal fun FolderStep(movedFrom: String? = null) = Backdrop {
             if (movedFrom != null) "Where's your Skyrim folder now?" else "Select your Skyrim folder",
             if (movedFrom != null) "Skyrim isn't in ${movedFrom.removePrefix("/storage/emulated/0/")} any more. If you moved the folder, choose where it is now; " +
                 "your mods and settings come with it. If it's on an SD card, put the card back in."
-            else "Copy the \"Skyrim Special Edition\" folder from your PC's Steam library (steamapps/common) to the Thor, then choose it here. " +
-                "It's the one with SkyrimSE.exe and the Data folder. Nothing is downloaded: you play the copy you own.",
+            else "Choose your \"Skyrim Special Edition\" folder: the one with SkyrimSE.exe and the Data folder. " +
+                "The easiest way is to copy it from your PC's Steam library (steamapps/common) to the Thor. " +
+                "A copy downloaded on the Thor with a Steam app such as GameNative or GameHub works too, if it's in a folder you can open. " +
+                "Either way, you play the copy you own.",
         )
         Spacer(Modifier.height(36.dp))
         GoldButton(if (checking) "Checking…" else "Select folder", { if (!checking) { problem = null; picker.launch(null) } }, wide = true)

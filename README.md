@@ -34,7 +34,11 @@ Nothing from Skyrim is included. The game files, the map and the icons all come 
 
 ## Install
 
-1. On your PC, find `Steam/steamapps/common/Skyrim Special Edition` and copy the whole folder to the Thor, for example to `Internal storage/SkyrimSE-DualScreen/Skyrim Special Edition`.
+1. Get your `Skyrim Special Edition` folder (the one with `SkyrimSE.exe` and `Data`) onto the Thor. Either way works:
+   - **From your PC (easiest):** copy `Steam/steamapps/common/Skyrim Special Edition` to the Thor, for example to `Internal storage/SkyrimSE-DualScreen/Skyrim Special Edition`.
+   - **On the Thor:** download Skyrim SE with a Steam app such as GameNative or GameHub, set to save games in a folder you can open (internal storage or SD card, not the app's private storage). Then choose that folder in step 3.
+
+   It has to be the current Steam version, 1.7.104. The app checks this and tells you if it isn't.
 
    **Copy a clean Skyrim folder.** Mods already in the folder from your PC will load, but they skip the faster boot and the Mod Manager can't remove them. Install mods inside the app instead, and remove any ENB or ReShade files (`d3d11.dll`, `dxgi.dll`).
 2. Download the latest `SkyrimSE-DualScreen-x.y.z.apk` from **Releases** and install it.

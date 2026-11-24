@@ -22,6 +22,7 @@ class SkseFailuresTest {
                 "zz_report_test.dll is damaged or isn't a 64-bit Windows plugin",
                 "OldMod.dll isn't made for Skyrim ${GameFolder.SUPPORTED_VERSION} yet",
                 "po3_Tweaks.dll needs the newest Address Library for SKSE Plugins (All in one, Anniversary Edition)",
+                "NoVer.dll is made for an older Skyrim: get the file marked RECOMMENDED FOR YOUR GAME",
             ),
             NotificationFeed.skseFailures(log),
         )

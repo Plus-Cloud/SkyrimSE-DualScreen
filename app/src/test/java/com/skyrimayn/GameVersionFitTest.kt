@@ -46,6 +46,24 @@ class GameVersionFitTest {
         assertEquals(3, GameVersionFit.bestFile(files.filter { "part 2" in it.name.lowercase() })?.fileId)
     }
 
+    /** Engine Fixes' real files (#15): the main file stops at 1.6.1170; Skyrim 1.7 needs the 7.0.21 beta. */
+    @Test fun engineFixes_betaFor1_7_beatsMainFile() {
+        val files = listOf(
+            f(1, "Engine Fixes - Main File", primary = true, desc = "Supports SE 1.5.97 and AE 1.6.1170+"),
+            f(2, "Engine Fixes 7.0.21 beta for Skyrim AE 1.7.99", cat = "OPTIONAL"),
+            f(3, "Part 2 - Engine Fixes skse64 Preloader and TBB Lib"),
+        )
+        assertEquals(2, GameVersionFit.bestFile(files)?.fileId)
+        assertEquals(2, GameVersionFit.sorted(files).first().fileId)
+        assertEquals(3, GameVersionFit.bestFile(files.filter { "part 2" in it.name.lowercase() })?.fileId)
+        // The main file says "AE", but only up to 1.6.1170: marked NOT FOR YOUR GAME next to the 1.7 file. Part 2 isn't.
+        assertEquals(Fit.OTHER_GAME, GameVersionFit.of(files[0], files))
+        assertEquals(Fit.FITS, GameVersionFit.of(files[1], files))
+        assertEquals(Fit.UNKNOWN, GameVersionFit.of(f(4, "(Part 2) Engine Fixes - skse64 Preloader ONLY", desc = "For 1.5.97 and 1.6.1170"), files))
+        // Without a 1.7 file on the page, "1.6.1170 and later" still fits (most mods built for it work on 1.7).
+        assertEquals(Fit.FITS, GameVersionFit.of(f(5, "SSE Engine Fixes for 1.6.1170 and later"), listOf(f(6, "for 1.5.97"))))
+    }
+
     @Test fun noVersionInfo_keepsNexusPrimary() {
         val files = listOf(f(1, "Main File"), f(2, "Main File (recommended)", primary = true), f(3, "Patch", cat = "OPTIONAL"))
         assertEquals(2, GameVersionFit.bestFile(files)?.fileId)

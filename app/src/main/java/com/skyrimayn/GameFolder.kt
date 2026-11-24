@@ -79,12 +79,24 @@ object GameFolder {
                 } ?: 0
                 val version = readExeVersion(exe)
                 // Everything (the companion's plugin, SKSE support, mod compatibility) is built for 1.7.104.
-                if (version != null && !version.startsWith("$SUPPORTED_VERSION."))
-                    GameCheck(path, false, "This is Skyrim SE $version. SkyrimSE-DualScreen needs $SUPPORTED_VERSION, the current Steam version: " +
-                        "update Skyrim in Steam on your PC, then copy the folder over again.")
+                if (version != null && !version.startsWith("$SUPPORTED_VERSION.")) GameCheck(path, false, wrongVersionMessage(version))
                 else GameCheck(path, true, exeVersion = version, pluginCount = plugins)
             }
         }
+    }
+
+    private fun wrongVersionMessage(version: String) =
+        "This is Skyrim SE $version. SkyrimSE-DualScreen needs $SUPPORTED_VERSION, the current Steam version: " +
+            "update Skyrim through Steam (on your PC, or in the app you downloaded it with), then choose the folder again."
+
+    /**
+     * Checked at every Play, not only when the folder is picked: a SkyrimSE.exe copied in later (an older copy, a
+     * "downgrade" for old mods, a new Bethesda patch) would otherwise start with a companion and SKSE built for
+     * another version, and crash with no explanation. The message, or null when it's ours (or can't be read).
+     */
+    suspend fun wrongVersion(path: String): String? = withContext(Dispatchers.IO) {
+        val version = readExeVersion(File(path, "SkyrimSE.exe")) ?: return@withContext null
+        if (version.startsWith("$SUPPORTED_VERSION.")) null else wrongVersionMessage(version)
     }
 
     /** Reads the file version from the exe's VS_FIXEDFILEINFO (in the resources near the end of the file). */

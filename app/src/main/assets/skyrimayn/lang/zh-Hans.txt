@@ -32,12 +32,12 @@ setup.files_body1 = 要开始游戏，本应用需要从设备存储中读取你
 setup.files_body2 = 请在下一个页面允许文件访问。它只用于你的 Skyrim 文件夹、存档和你安装的模组。
 setup.allow_access = 允许访问
 setup.folder_title = 选择 Skyrim 文件夹
-setup.folder_body = 把电脑 Steam 库（steamapps/common）里的 “Skyrim Special Edition” 文件夹复制到 Thor，然后在这里选择它。就是包含 SkyrimSE.exe 和 Data 文件夹的那个。不会下载任何东西：你玩的是自己拥有的那份。
+setup.folder_body = 选择你的“Skyrim Special Edition”文件夹：就是包含 SkyrimSE.exe 和 Data 文件夹的那个。最简单的方法是从电脑的 Steam 库（steamapps/common）复制到 Thor。用 GameNative 或 GameHub 等 Steam 应用在 Thor 上下载的副本也可以，只要它在你能打开的文件夹里。无论哪种方式，你玩的都是你自己拥有的副本。
 setup.select_folder = 选择文件夹
 setup.folder_unreadable = 无法读取该位置。请尝试内部存储或 SD 卡中的文件夹。
 setup.folder_cant_open = 无法打开该文件夹。
 setup.folder_no_exe = 这里没有 SkyrimSE.exe。请选择包含 SkyrimSE.exe 和 Data 的文件夹。
-setup.folder_wrong_version = 这是 Skyrim SE {}。SkyrimSE-DualScreen 需要当前 Steam 版本 {}：请在电脑的 Steam 中更新 Skyrim，然后重新复制文件夹。
+setup.folder_wrong_version = 这是 Skyrim SE {}。SkyrimSE-DualScreen 需要当前 Steam 版本 {}：请通过 Steam 更新 Skyrim（在电脑上，或在你下载它所用的应用中），然后重新选择文件夹。
 setup.finish_on_top = 请在上屏完成设置
 
 [steam]
@@ -586,3 +586,15 @@ v106.27 = 你的部分模组需要 Script Extender（SKSE），但它尚未安�
 v106.28 = SSE Engine Fixes 缺少第 2 部分，因此 Skyrim 会显示 Engine Fixes 错误。请从 Engine Fixes 页面安装第 2 部分。
 v106.29 = SSE Engine Fixes 还需要第 2 部分：正在获取…
 v106.30 = SSE Engine Fixes 还需要第 2 部分。登录 Nexus Mods 后应用会自动获取。
+
+[v107]
+v107.1 = SSE Engine Fixes 是为旧版 Skyrim 制作的，因此已将其关闭，Skyrim 仍会正常启动。请在“模组”中卸载它，并安装标有“推荐用于你的游戏”的文件。
+v107.2 = 为旧版 Skyrim 制作，无法加载：{}。请在“模组”中卸载它们，并安装标有“推荐用于你的游戏”的文件。
+v107.3 = {} 是为旧版 Skyrim 制作的：请获取标有“推荐用于你的游戏”的文件
+
+v107.4 = 两个都获取 ›
+v107.5 = Engine Fixes 第 2 部分
+v107.6 = 同一页面上的第二个文件。没有它 Engine Fixes 无法工作。
+v107.7 = Nexus 需要你在其网站上重新登录（每隔几周会要求一次）。在下方登录后，下载会自动继续。
+v107.8 = {} 正在等你  ·  点按下载 ›
+v107.9 = 载入存档后即可查看。

@@ -32,12 +32,12 @@ setup.files_body1 = プレイするには、このアプリが端末のストレ
 setup.files_body2 = 次の画面でファイルへのアクセスを許可してください。Skyrim フォルダ、そのセーブデータ、インストールした MOD にのみ使用します。
 setup.allow_access = アクセスを許可
 setup.folder_title = Skyrim フォルダを選択
-setup.folder_body = PC の Steam ライブラリ (steamapps/common) にある「Skyrim Special Edition」フォルダを Thor にコピーし、ここで選択してください。SkyrimSE.exe と Data フォルダが入っているフォルダです。ダウンロードは行いません。あなたが所有するゲームでプレイします。
+setup.folder_body = 「Skyrim Special Edition」フォルダーを選んでください（SkyrimSE.exe と Data フォルダーがあるもの）。いちばん簡単なのは、PC の Steam ライブラリ（steamapps/common）から Thor にコピーする方法です。GameNative や GameHub などの Steam アプリで Thor にダウンロードしたものも、開けるフォルダーにあれば使えます。どちらでも、あなたが所有するコピーでプレイします。
 setup.select_folder = フォルダを選択
 setup.folder_unreadable = その場所を読み込めません。内部ストレージか SD カードのフォルダを選んでください。
 setup.folder_cant_open = そのフォルダを開けません。
 setup.folder_no_exe = ここに SkyrimSE.exe がありません。SkyrimSE.exe と Data が入っているフォルダを選んでください。
-setup.folder_wrong_version = これは Skyrim SE {} です。SkyrimSE-DualScreen には最新の Steam 版 {} が必要です。PC の Steam で Skyrim を更新してから、フォルダをもう一度コピーしてください。
+setup.folder_wrong_version = これは Skyrim SE {} です。SkyrimSE-DualScreen には現在の Steam 版 {} が必要です。Steam で Skyrim を更新し（PC、またはダウンロードに使ったアプリで）、もう一度フォルダーを選んでください。
 setup.finish_on_top = 上の画面でセットアップを完了してください
 
 [steam]
@@ -586,3 +586,15 @@ v106.27 = 一部の MOD には Script Extender（SKSE）が必要ですが、イ
 v106.28 = SSE Engine Fixes のパート 2 がないため、Skyrim で Engine Fixes のエラーが表示されます。Engine Fixes のページからパート 2 をインストールしてください。
 v106.29 = SSE Engine Fixes にはパート 2 も必要です：取得中…
 v106.30 = SSE Engine Fixes にはパート 2 も必要です。Nexus Mods にサインインすると、アプリが取得します。
+
+[v107]
+v107.1 = SSE Engine Fixes は古い Skyrim 用のため、オフにしました。Skyrim はそのまま起動します。MOD でアンインストールし、「あなたのゲームにおすすめ」と表示されたファイルを入れてください。
+v107.2 = 古い Skyrim 用のため読み込めません：{}。MOD でアンインストールし、「あなたのゲームにおすすめ」と表示されたファイルを入れてください。
+v107.3 = {} は古い Skyrim 用です：「あなたのゲームにおすすめ」のファイルを入手してください
+
+v107.4 = 両方取得 ›
+v107.5 = Engine Fixes パート 2
+v107.6 = 同じページの 2 つ目のファイルです。これがないと Engine Fixes は動作しません。
+v107.7 = Nexus のウェブサイトで再ログインが必要です（数週間ごとに求められます）。下でログインすると、ダウンロードは自動で続きます。
+v107.8 = {} があなたを待っています  ·  タップしてダウンロード ›
+v107.9 = セーブデータを読み込むと表示されます。

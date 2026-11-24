@@ -137,6 +137,7 @@ object ModManager {
     private fun indexFile(game: File) = File(root(game), "mods.json")
 
     private fun readIndex(game: File) {
+        SksePlugins.restore(game)   // plugins hidden from the last launch go back before the mod list is touched
         val f = indexFile(game)
         val mods = ArrayList<InstalledMod>()
         owners = HashMap()
@@ -550,6 +551,10 @@ object ModManager {
         _notice.value = "${meta?.name ?: name} installed" + if (plugins.isNotEmpty()) " · ${plugins.size} plugin${if (plugins.size > 1) "s" else ""} enabled" else ""
         Timber.i("SkyrimAYN: installed $id (${placed.size} files, ${plugins.size} plugins)")
         offerSkseIfNeeded(game)
+        // The file that was just installed is for old Skyrim: say so now, not when Skyrim won't start.
+        val old = placed.filter { it.lowercase().startsWith("skse/plugins/") && it.endsWith(".dll", true) }
+            .map { target(paths, it) }.filter { SksePlugins.isOldBuild(it) }.map { it.name }
+        SksePlugins.problem(old)?.let { _notice.value = it; return }
         offerEngineFixesPart2(game)
     }
 
@@ -718,16 +723,7 @@ object ModManager {
         engineFixesOffered = true
         if (apiKey() == null) { _notice.value = "SSE Engine Fixes also needs its Part 2. Sign in to Nexus Mods and the app will get it."; return }
         _notice.value = "SSE Engine Fixes also needs its Part 2: getting it…"
-        scope.launch {
-            try {
-                val mod = NexusApi.mod(ENGINE_FIXES_NEXUS_ID).first
-                val part2 = NexusApi.files(ENGINE_FIXES_NEXUS_ID).filter { "part 2" in "${it.name} ${it.fileName}".lowercase().replace('_', ' ') }
-                val file = GameVersionFit.bestFile(part2) ?: run { _notice.value = "Couldn't find Engine Fixes Part 2 on Nexus"; return@launch }
-                withContext(Dispatchers.Main) { enqueue(mod, file) }
-            } catch (e: Exception) {
-                _notice.value = "Couldn't reach Nexus Mods: ${e.message}"
-            }
-        }
+        scope.launch { enqueueEngineFixesPart2() }
     }
 
     /** A file of this Nexus mod is queued or downloading already. */
@@ -749,7 +745,7 @@ object ModManager {
     }
 
     /** A mod whose requirements aren't installed: the player chooses whether to get them first. */
-    data class RequirementsPrompt(val mod: NexusApi.Mod, val file: NexusApi.ModFile, val missing: List<NexusApi.Requirement>)
+    data class RequirementsPrompt(val mod: NexusApi.Mod, val file: NexusApi.ModFile, val missing: List<NexusApi.Requirement>, val part2: Boolean = false)
     private val _reqPrompt = MutableStateFlow<RequirementsPrompt?>(null)
     val reqPrompt: StateFlow<RequirementsPrompt?> = _reqPrompt
 
@@ -761,12 +757,37 @@ object ModManager {
 
     /** Download a file, first asking about any requirements that aren't installed. */
     fun request(mod: NexusApi.Mod, file: NexusApi.ModFile) {
-        if (isInstalled(mod.modId, file.fileId)) { _notice.value = "${mod.name} is already installed"; return }
+        // This exact file. (A mod installed from an archive has no file id; it mustn't block getting another file of
+        // that mod, such as the version for your game.)
+        if (_mods.value.any { it.nexusId == mod.modId && it.fileId == file.fileId }) { _notice.value = "${mod.name} is already installed"; return }
         if (_downloads.value.any { it.state == DlState.DOWNLOADING && it.id == file.fileName }) return
         val have = installedNexusIds() + queuedIds
         val missing = mod.requirements.filter { it.gameId == NexusApi.GAME_ID && it.modId != mod.modId && it.modId !in have }
-        if (missing.isNotEmpty()) _reqPrompt.value = RequirementsPrompt(mod, file, missing)
+        // Engine Fixes is two files on one page, and Nexus doesn't list the second as a requirement: say so up front.
+        val part2 = needsEngineFixesPart2(mod, file)
+        if (missing.isNotEmpty() || part2) _reqPrompt.value = RequirementsPrompt(mod, file, missing, part2)
         else enqueue(mod, file)
+    }
+
+    private fun isPart2(file: NexusApi.ModFile) = "part 2" in "${file.name} ${file.fileName}".lowercase().replace('_', ' ')
+
+    /** Getting Engine Fixes' plugin while its Part 2 isn't installed (or already coming). */
+    private fun needsEngineFixesPart2(mod: NexusApi.Mod, file: NexusApi.ModFile): Boolean {
+        if (mod.modId != ENGINE_FIXES_NEXUS_ID || isPart2(file)) return false
+        if (synchronized(queue) { queue.any { it.first.modId == ENGINE_FIXES_NEXUS_ID && isPart2(it.second) } }) return false
+        return gameDir()?.let { !ModOverlay.Paths(it)["d3dx9_42.dll"].isFile } ?: true
+    }
+
+    /** Queues Engine Fixes' Part 2: the file for our game. */
+    private suspend fun enqueueEngineFixesPart2() {
+        try {
+            val mod = NexusApi.mod(ENGINE_FIXES_NEXUS_ID).first
+            val file = GameVersionFit.bestFile(NexusApi.files(ENGINE_FIXES_NEXUS_ID).filter(::isPart2))
+                ?: run { _notice.value = "Couldn't find Engine Fixes Part 2 on Nexus"; return }
+            withContext(Dispatchers.Main) { enqueue(mod, file) }
+        } catch (e: Exception) {
+            _notice.value = "Couldn't reach Nexus Mods: ${e.message}"
+        }
     }
 
     /** The player's answer to [reqPrompt]: get the requirements first (their main files), or only this mod. */
@@ -774,7 +795,8 @@ object ModManager {
         val p = _reqPrompt.value ?: return
         _reqPrompt.value = null
         if (getThemFirst == null) return
-        if (!getThemFirst) { enqueue(p.mod, p.file); return }
+        // Part 2 is part of the same mod: it comes with "only this mod" too.
+        if (!getThemFirst) { enqueue(p.mod, p.file); if (p.part2) scope.launch { enqueueEngineFixesPart2() }; return }
         scope.launch {
             for (r in p.missing) {
                 try {
@@ -787,6 +809,7 @@ object ModManager {
                 }
             }
             enqueue(p.mod, p.file)
+            if (p.part2) enqueueEngineFixesPart2()
         }
     }
 
